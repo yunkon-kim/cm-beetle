@@ -20,7 +20,8 @@ deployments/docker-compose/cm-honeybee/
 | :--- | :--- | :--- |
 | `openbao/openbao-config.hcl` | `server/openbao/openbao-config.hcl` | OpenBao configuration for Honeybee's dedicated secrets backend |
 
-## v0.6.0 Sync (2026-08-20)
+## v0.6.1 Sync (2026-09-08)
 
-- Initialized `cm-honeybee/openbao/openbao-config.hcl` based on upstream `cm-honeybee` v0.6.0.
-- `cm-honeybee` self-manages its dedicated OpenBao container (`openbao-honeybee`) by performing automated initialization and unsealing on startup.
+- Bumped `cm-honeybee` service image to `cloudbaristaorg/cm-honeybee:0.6.1`.
+- Removed fixed agent port mapping (`8082:8082`) in `docker-compose.ui.yaml`, as the agent now dynamically allocates and binds to a kernel-chosen loopback port over SSH.
+- Verified OpenBao configuration `cm-honeybee/openbao/openbao-config.hcl` remains identical with upstream v0.6.1.

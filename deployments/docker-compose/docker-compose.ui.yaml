@@ -50,13 +50,12 @@ services:
   # 2. CM-Honeybee (On-Premise Infrastructure Extractor)
   # ============================================================================
   cm-honeybee:
-    image: cloudbaristaorg/cm-honeybee:0.6.0
+    image: cloudbaristaorg/cm-honeybee:0.6.1
     container_name: cm-honeybee
     networks:
       - cloud-barista
     ports:
       - "8081:8081"
-      - "8082:8082"
     depends_on:
       openbao-honeybee:
         condition: service_healthy

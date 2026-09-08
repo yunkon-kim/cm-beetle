@@ -57,28 +57,28 @@ CM-Beetle Managed RDBMS supports multi-cloud database provisioning across 9 majo
 
 MySQL is verified and supported across all 9 CSPs:
 
-| CSP           | Service Brand                       | Supported Versions |   Access Mode    | Subnet Requirement                              | Provisioning Characteristics                                   |
-| :------------ | :---------------------------------- | :----------------- | :--------------: | :---------------------------------------------- | :------------------------------------------------------------- |
-| **AWS**       | Amazon RDS for MySQL                | 8.0, 5.7           | Public / Private | Multi-AZ Subnet Group (>= 2 subnets across AZs) | High availability and automated failover                       |
-| **Azure**     | Azure Database for MySQL            | 8.0, 5.7           | Public / Private | Single or Multi-Subnet                          | Flexible server architecture                                   |
-| **GCP**       | Google Cloud SQL for MySQL          | 8.0, 5.7           | Public / Private | Authorized Networks / VPC Peering               | Highly performant storage scaling                              |
-| **Alibaba**   | Alibaba Cloud ApsaraDB for MySQL    | 8.0, 5.7           | Public / Private | VNet Subnet Binding                             | Broad engine version choices                                   |
-| **Tencent**   | Tencent Cloud CDB for MySQL         | 8.0, 5.7           | Public / Private | Multi-AZ VPC Subnet Group                       | Fast regional provisioning                                     |
-| **IBM**       | IBM Cloud Databases for MySQL       | 8.4 (replaces 8.0) | Public / Private | Resource Group / VPC bound                      | Asynchronous provisioning (~20-25m) with robust status polling |
-| **NCP**       | NAVER Cloud DB for MySQL            | 8.0, 5.7           |   Private Only   | Single Subnet + Dedicated DB Port               | Private access enforced; verified via Internal Runner VM       |
-| **NHN**       | NHN Cloud RDS for MySQL             | 8.0, 5.7           | Public / Private | Standard VPC Subnet                             | Inbound security group rules required                          |
-| **OpenStack** | OpenStack Trove (MySQL)             | 5.7.29             | Public / Private | Standard VPC Subnet / Floating IP               | Flexible private cloud deployment; verified external & internal SQL I/O |
+| CSP           | Service Brand                    | Supported Versions     |   Access Mode    | Subnet Requirement                              | Provisioning Characteristics                                            |
+| :------------ | :------------------------------- | :--------------------- | :--------------: | :---------------------------------------------- | :---------------------------------------------------------------------- |
+| **AWS**       | Amazon RDS for MySQL             | 8.4, 8.0, 5.7          | Public / Private | Multi-AZ Subnet Group (>= 2 subnets across AZs) | High availability and automated failover                                |
+| **Azure**     | Azure Database for MySQL         | 8.4, 8.0 (8.0.21), 5.7 | Public / Private | Single or Multi-Subnet                          | Flexible server architecture; supports 8.4 & 9.5                        |
+| **GCP**       | Google Cloud SQL for MySQL       | 8.4, 8.0, 5.7          | Public / Private | Authorized Networks / VPC Peering               | Highly performant storage scaling                                       |
+| **Alibaba**   | Alibaba Cloud ApsaraDB for MySQL | 8.4, 8.0, 5.7          | Public / Private | VNet Subnet Binding                             | Broad engine version choices                                            |
+| **Tencent**   | Tencent Cloud CDB for MySQL      | 8.4, 8.0, 5.7, 5.6     | Public / Private | Multi-AZ VPC Subnet Group                       | Fast regional provisioning                                              |
+| **IBM**       | IBM Cloud Databases for MySQL    | 8.4 (replaces 8.0)     | Public / Private | Resource Group / VPC bound                      | Asynchronous provisioning (~20-25m) with robust status polling          |
+| **NCP**       | NAVER Cloud DB for MySQL         | 8.4, 8.0               |   Private Only   | Single Subnet + Dedicated DB Port               | Private access enforced; verified via Internal Runner VM                |
+| **NHN**       | NHN Cloud RDS for MySQL          | 8.4, 8.0, 5.7          | Public / Private | Standard VPC Subnet                             | Inbound security group rules required                                   |
+| **OpenStack** | OpenStack Trove (MySQL)          | 5.7.29                 | Public / Private | Standard VPC Subnet / Floating IP               | Flexible private cloud deployment; verified external & internal SQL I/O |
 
 ### 2. MariaDB Support Matrix
 
 MariaDB is natively supported across 4 CSPs:
 
-| CSP           | Service Brand                      | Supported Versions |   Access Mode    | Subnet Requirement                              | Provisioning Characteristics                                   |
-| :------------ | :--------------------------------- | :----------------- | :--------------: | :---------------------------------------------- | :------------------------------------------------------------- |
-| **AWS**       | Amazon RDS for MariaDB             | 10.6, 10.5, 10.4   | Public / Private | Multi-AZ Subnet Group (>= 2 subnets across AZs) | Automated failover, parameter group customization              |
-| **Alibaba**   | Alibaba Cloud ApsaraDB for MariaDB | 10.3               | Public / Private | VNet Subnet Binding                             | High-availability primary/standby architecture                 |
-| **NHN**       | NHN Cloud RDS for MariaDB          | 10.6               | Public / Private | Standard VPC Subnet                             | AppKey credential integration required                         |
-| **OpenStack** | OpenStack Trove (MariaDB)          | 10.4               | Public / Private | Standard VPC Subnet / Floating IP               | Reference version 10.4 in RegionOne datastore                  |
+| CSP           | Service Brand                      | Supported Versions            |   Access Mode    | Subnet Requirement                              | Provisioning Characteristics                      |
+| :------------ | :--------------------------------- | :---------------------------- | :--------------: | :---------------------------------------------- | :------------------------------------------------ |
+| **AWS**       | Amazon RDS for MariaDB             | 10.5, 10.6, 10.11, 11.4, 11.8 | Public / Private | Multi-AZ Subnet Group (>= 2 subnets across AZs) | Automated failover, parameter group customization |
+| **Alibaba**   | Alibaba Cloud ApsaraDB for MariaDB | 10.6, 10.3                    | Public / Private | VNet Subnet Binding                             | High-availability primary/standby architecture    |
+| **NHN**       | NHN Cloud RDS for MariaDB          | 10.6, 10.11, 11.4 (10.3~11.8) | Public / Private | Standard VPC Subnet                             | AppKey credential integration required            |
+| **OpenStack** | OpenStack Trove (MariaDB)          | 10.4                          | Public / Private | Standard VPC Subnet / Floating IP               | Reference version 10.4 in RegionOne datastore     |
 
 > [!NOTE]
 > **Automatic Compatibility Fallback**:
