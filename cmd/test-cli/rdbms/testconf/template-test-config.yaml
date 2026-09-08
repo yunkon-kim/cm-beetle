@@ -4,6 +4,9 @@ beetle:
   requestBodyFile: rdbms-req.json
   authConfigFile: auth.json
 
+# Note: In test cases, parameters like dbInstanceSpec, dbEngineVersion, and storageType serve as reference values
+# or fallback defaults. Beetle dynamically recommends the optimal DB instance spec based on the source database's
+# vCPU, memory, and disk capacity from requestBodyFile (rdbms-req.json), using the recommendation during validation and migration.
 test:
   set:
     mode: parallel # sequential or parallel
@@ -240,28 +243,157 @@ test:
       vmSpecId: ""
       execute: true
 
-    # 9. OpenStack (Planned for future test)
+    # 9. OpenStack
     - name: "OpenStack RegionOne MySQL Test"
       csp: openstack
       region: RegionOne
       rdbmsId: test-rdbms-openstack
       connectionName: openstack-regionone
       vNetName: test-rdbms-vnet-openstack
-      cidrBlock: 10.9.0.0/16
+      cidrBlock: 10.6.0.0/16
       subnets:
         - name: subnet-1
-          cidr: 10.9.1.0/24
+          cidr: 10.6.1.0/24
           zone: ""
       securityGroupName: test-rdbms-sg-openstack
       dbEngine: mysql
-      adminUserName: dbadmin
+      adminUserName: admin
       adminUserPassword: Password123!
       publicAccess: true
       highAvailability: false
       databaseName: sampledb
       externalDataIOTest: true
       internalDataIOTest: true
-      vmOSType: "ubuntu 22.04"
+      vmOSType: "ubuntu 24.04"
+      vmvCPU: "2"
+      vmMemoryGiB: "4"
+      vmImageId: ""
+      vmSpecId: ""
+      execute: false
+
+    # 10. OpenStack (MariaDB)
+    - name: "OpenStack RegionOne MariaDB Test"
+      csp: openstack
+      region: RegionOne
+      rdbmsId: test-rdbms-mariadb-openstack
+      connectionName: openstack-regionone
+      vNetName: test-rdbms-vnet-openstack
+      cidrBlock: 10.6.0.0/16
+      subnets:
+        - name: subnet-1
+          cidr: 10.6.1.0/24
+          zone: ""
+      securityGroupName: test-rdbms-sg-openstack
+      dbEngine: mariadb
+      dbEngineVersion: "10.4"
+      adminUserName: admin
+      adminUserPassword: Password123!
+      dbInstanceSpec: m1.small
+      storageType: RBD
+      storageSize: 100
+      publicAccess: true
+      highAvailability: false
+      databaseName: sampledb
+      externalDataIOTest: true
+      internalDataIOTest: true
+      vmOSType: "ubuntu 24.04"
+      vmvCPU: "2"
+      vmMemoryGiB: "4"
+      vmImageId: ""
+      vmSpecId: ""
+      execute: false
+
+    # 11. AWS (MariaDB)
+    - name: "AWS AP-Northeast-2 (Seoul) MariaDB Test"
+      csp: aws
+      region: ap-northeast-2
+      rdbmsId: test-rdbms-mariadb-aws
+      connectionName: aws-ap-northeast-2
+      vNetName: test-rdbms-vnet-aws
+      cidrBlock: 10.0.0.0/16
+      subnets:
+        - name: subnet-1
+          cidr: 10.0.1.0/24
+          zone: ap-northeast-2a
+        - name: subnet-2
+          cidr: 10.0.2.0/24
+          zone: ap-northeast-2c
+      securityGroupName: test-rdbms-sg-aws
+      dbEngine: mariadb
+      dbEngineVersion: "10.6"
+      adminUserName: root
+      adminUserPassword: Password123!
+      dbInstanceSpec: db.t3.medium
+      storageType: gp3
+      storageSize: 100
+      publicAccess: true
+      highAvailability: false
+      databaseName: sampledb
+      externalDataIOTest: true
+      internalDataIOTest: true
+      vmOSType: "ubuntu 24.04"
+      vmvCPU: "2"
+      vmMemoryGiB: "4"
+      vmImageId: ""
+      vmSpecId: ""
+      execute: false
+
+    # 12. Alibaba (MariaDB)
+    - name: "Alibaba AP-Northeast-2 (Seoul) MariaDB Test"
+      csp: alibaba
+      region: ap-northeast-2
+      rdbmsId: test-rdbms-mariadb-alibaba
+      connectionName: alibaba-ap-northeast-2
+      vNetName: test-rdbms-vnet-alibaba
+      cidrBlock: 10.3.0.0/16
+      subnets:
+        - name: subnet-1
+          cidr: 10.3.1.0/24
+          zone: ap-northeast-2a
+      securityGroupName: test-rdbms-sg-alibaba
+      dbEngine: mariadb
+      dbEngineVersion: "10.6"
+      adminUserName: dbadmin
+      adminUserPassword: Password123!
+      dbInstanceSpec: mariadb.n2.medium.2c
+      storageSize: 20
+      publicAccess: true
+      highAvailability: false
+      databaseName: sampledb
+      externalDataIOTest: true
+      internalDataIOTest: true
+      vmOSType: "ubuntu 24.04"
+      vmvCPU: "2"
+      vmMemoryGiB: "4"
+      vmImageId: ""
+      vmSpecId: ""
+      execute: false
+
+    # 13. NHN (MariaDB)
+    - name: "NHN Cloud KR1 (Pangyo) MariaDB Test"
+      csp: nhn
+      region: kr1
+      rdbmsId: test-rdbms-mariadb-nhn
+      connectionName: nhn-kr1
+      vNetName: test-rdbms-vnet-nhn
+      cidrBlock: 10.8.0.0/16
+      subnets:
+        - name: subnet-1
+          cidr: 10.8.1.0/24
+          zone: ""
+      securityGroupName: test-rdbms-sg-nhn
+      dbEngine: mariadb
+      dbEngineVersion: "MARIADB_V101118"
+      adminUserName: myadmin
+      adminUserPassword: Password123!
+      dbInstanceSpec: m2.c2m4
+      publicAccess: true
+      nhnDBSGToAllowAllInbound: true
+      highAvailability: false
+      databaseName: sampledb
+      externalDataIOTest: true
+      internalDataIOTest: true
+      vmOSType: "ubuntu 24.04"
       vmvCPU: "2"
       vmMemoryGiB: "4"
       vmImageId: ""

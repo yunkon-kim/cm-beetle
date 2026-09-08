@@ -61,6 +61,7 @@ func GetRDBMSSupport(c echo.Context) error {
 // @Accept json
 // @Produce json
 // @Param connectionName query string true "Connection Name (e.g., aws-ap-northeast-2)"
+// @Param dbEngine query string false "Database Engine filter (e.g., mysql, mariadb)"
 // @Success 200 {object} rdbmsmodel.RDBMSCapabilityResponse
 // @Failure 400 {object} model.ApiResponse[any] "Invalid request parameters"
 // @Failure 500 {object} model.ApiResponse[any] "Internal server error"
@@ -71,10 +72,15 @@ func GetRDBMSCapability(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, model.SimpleErrorResponse("connectionName is required"))
 	}
 
-	result, err := recommendation.GetRDBMSCapability(connectionName)
+	var optionalEngine []string
+	if dbEngine := strings.TrimSpace(c.QueryParam("dbEngine")); dbEngine != "" {
+		optionalEngine = append(optionalEngine, dbEngine)
+	}
+
+	result, err := recommendation.GetRDBMSCapability(connectionName, optionalEngine...)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to get RDBMS capability")
-		return c.JSON(http.StatusInternalServerError, model.SimpleErrorResponse(fmt.Sprintf("Failed to get RDBMS capability: %v", err)))
+		log.Warn().Err(err).Str("connectionName", connectionName).Msg("Failed to get RDBMS capability")
+		return c.JSON(http.StatusBadRequest, model.SimpleErrorResponse(fmt.Sprintf("Failed to get RDBMS capability: %v", err)))
 	}
 
 	return c.JSON(http.StatusOK, result)
@@ -176,6 +182,12 @@ func RecommendRDBMS(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, model.SimpleErrorResponse("At least one source RDBMS instance required"))
 	}
 
+	// Validate Source RDBMS Model
+	if err := recommendation.ValidateSourceRDBMS(req.SourceRDBMSInstances); err != nil {
+		log.Warn().Err(err).Msg("Invalid source RDBMS instance configuration")
+		return c.JSON(http.StatusBadRequest, model.SimpleErrorResponse(err.Error()))
+	}
+
 	log.Info().
 		Str("desiredCsp", desiredCsp).
 		Str("region", desiredRegion).
@@ -185,8 +197,8 @@ func RecommendRDBMS(c echo.Context) error {
 	// [Process]
 	recommended, err := recommendation.RecommendRDBMS(desiredCsp, desiredRegion, req.SourceRDBMSInstances)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to recommend managed RDBMS")
-		return c.JSON(http.StatusInternalServerError, model.SimpleErrorResponse(err.Error()))
+		log.Warn().Err(err).Msg("Failed to recommend managed RDBMS")
+		return c.JSON(http.StatusBadRequest, model.SimpleErrorResponse(err.Error()))
 	}
 
 	successMsg := fmt.Sprintf("Successfully recommended %d managed RDBMS configuration(s) for %s (%s)",
