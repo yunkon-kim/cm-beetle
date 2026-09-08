@@ -362,6 +362,11 @@ definitions:
       cspImageName:
         example: csp-06eb41e14121c550a
         type: string
+      deletionRequestedAt:
+        description: |-
+          DeletionRequestedAt (RFC3339) marks a deletion tombstone (customImage only):
+          non-empty means the row is kept until CSP-side removal is confirmed
+        type: string
       description:
         type: string
       details:
@@ -447,6 +452,8 @@ definitions:
         type: string
       systemLabel:
         example: Managed by CB-Tumblebug
+        type: string
+      systemMessage:
         type: string
       uid:
         example: wef12awefadf1221edcf
@@ -977,7 +984,7 @@ definitions:
       rootDiskType:
         description: '"", "default", "TYPE1", AWS: ["standard", "gp2", "gp3"], Azure:
           ["PremiumSSD", "StandardSSD", "StandardHDD"], GCP: ["pd-standard", "pd-balanced",
-          "pd-ssd", "pd-extreme"], ALIBABA: ["cloud_efficiency", "cloud", "cloud_ssd"],
+          "pd-ssd", "pd-extreme"], ALIBABA: ["cloud_efficiency", "cloud", "cloud_essd"],
           TENCENT: ["CLOUD_PREMIUM", "CLOUD_SSD"]'
         example: cloud_essd
         type: string
@@ -1049,6 +1056,11 @@ definitions:
         type: string
       cspResourceName:
         type: string
+      deletionRequestedAt:
+        description: |-
+          DeletionRequestedAt (RFC3339) marks a deletion tombstone: non-empty means the
+          record is kept until CSP-side removal is confirmed
+        type: string
       description:
         type: string
       healthChecker:
@@ -1074,6 +1086,8 @@ definitions:
       status:
         type: string
       systemLabel:
+        type: string
+      systemMessage:
         type: string
       targetGroup:
         $ref: '#/definitions/cloudmodel.NLBTargetGroupInfo'
@@ -1228,6 +1242,14 @@ definitions:
         type: array
       description:
         type: string
+      failure:
+        allOf:
+        - $ref: '#/definitions/cloudmodel.ProvisioningFailure'
+        description: |-
+          Failure is the structured form of a creation failure: which class of CSP
+          rejection it was, the zone that was attempted, and whether a retry can
+          plausibly succeed. SystemMessage carries the same failure as one line of
+          text for display; this field is what retry logic reads.
       id:
         description: Id is unique identifier for the object
         example: aws-ap-southeast-1
@@ -1433,6 +1455,78 @@ definitions:
     - PostCommandStatusFailed
     - PostCommandStatusSkipped
     - PostCommandStatusRunning
+  cloudmodel.ProvisioningFailure:
+    properties:
+      attemptedZone:
+        description: |-
+          AttemptedZone is the zone CB-Tumblebug actually requested, recorded from
+          the request itself. Authoritative: several CSPs (e.g. Alibaba) never name
+          the zone in their error text.
+        example: us-west-2a
+        type: string
+      class:
+        description: Class is one of the Failure* constants.
+        example: ZoneCapacity
+        type: string
+      cspErrorCode:
+        description: |-
+          CspErrorCode is the provider's own error identifier when one could be
+          extracted (e.g. "InsufficientInstanceCapacity", "STOCKOUT").
+        example: InsufficientInstanceCapacity
+        type: string
+      httpStatus:
+        example: 500
+        type: integer
+      message:
+        description: Message is a single-line human-readable summary.
+        type: string
+      occurredAt:
+        type: string
+      provider:
+        example: aws
+        type: string
+      rawMessage:
+        description: |-
+          RawMessage is the original CSP text after secret redaction, noise
+          trimming and length capping. Kept so an unrecognized failure can still
+          be diagnosed by a human.
+        type: string
+      region:
+        example: us-west-2
+        type: string
+      reportedZone:
+        description: |-
+          ReportedZone is the zone parsed out of the CSP message, when it names one.
+          A mismatch with AttemptedZone means the VM was placed somewhere other than
+          where CB-Tumblebug intended — worth surfacing rather than hiding.
+        example: us-west-2a
+        type: string
+      requestId:
+        type: string
+      retryHint:
+        description: RetryHint is one of the RetryHint* constants.
+        example: differentZone
+        type: string
+      retryable:
+        description: |-
+          Retryable reports whether retrying can plausibly succeed without the
+          user changing something (quota increase, different spec).
+        example: true
+        type: boolean
+      source:
+        example: cb-spider:1024/spider/vm
+        type: string
+      suggestedZones:
+        description: |-
+          SuggestedZones are alternatives the CSP itself offered. Only AWS provides
+          these today; empty for every other provider.
+        example:
+        - us-west-2b
+        - us-west-2c
+        items:
+          type: string
+        type: array
+    type: object
   cloudmodel.RecommendedInfra:
     properties:
       description:
@@ -2561,6 +2655,26 @@ definitions:
           type: string
         type: array
     type: object
+  controller.MigrateRDBMSRequest:
+    properties:
+      description:
+        description: Human-readable summary
+        type: string
+      status:
+        description: '"recommended", "partial", "failed"'
+        type: string
+      targetCloud:
+        $ref: '#/definitions/rdbmsmodel.CloudProperty'
+      targetRDBMSInstances:
+        items:
+          $ref: '#/definitions/rdbmsmodel.TargetRDBMSInstance'
+        type: array
+      warnings:
+        description: CSP feature-support warnings
+        items:
+          type: string
+        type: array
+    type: object
   controller.NodeSSHStatus:
     properties:
       error:
@@ -2735,6 +2849,24 @@ definitions:
     required:
     - desiredCloud
     - sourceObjectStorages
+    type: object
+  controller.RecommendRDBMSRequest:
+    properties:
+      autoFillSourceDefaults:
+        example: true
+        type: boolean
+      desiredCloud:
+        $ref: '#/definitions/rdbmsmodel.CloudProperty'
+      sourceRDBMSInstances:
+        items:
+          $ref: '#/definitions/rdbmsmodel.SourceRDBMSProperty'
+        minItems: 1
+        type: array
+      targetPreferences:
+        $ref: '#/definitions/recommendation.TargetPreferences'
+    required:
+    - desiredCloud
+    - sourceRDBMSInstances
     type: object
   controller.ScanObjectStorageRequest:
     properties:
@@ -3341,6 +3473,101 @@ definitions:
         example: true
         type: boolean
     type: object
+  model.ApiResponse-rdbmsmodel_RDBMSCreateRequest:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/rdbmsmodel.RDBMSCreateRequest'
+        description: Contains the actual response data (single object, list, or page)
+      error:
+        description: Error message for failed responses
+        example: Error message if failure
+        type: string
+      message:
+        description: Optional message for additional context
+        example: Operation successful
+        type: string
+      success:
+        description: Indicates whether the API call was successful
+        example: true
+        type: boolean
+    type: object
+  model.ApiResponse-rdbmsmodel_RDBMSDatabaseListResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/rdbmsmodel.RDBMSDatabaseListResponse'
+        description: Contains the actual response data (single object, list, or page)
+      error:
+        description: Error message for failed responses
+        example: Error message if failure
+        type: string
+      message:
+        description: Optional message for additional context
+        example: Operation successful
+        type: string
+      success:
+        description: Indicates whether the API call was successful
+        example: true
+        type: boolean
+    type: object
+  model.ApiResponse-rdbmsmodel_RDBMSInfo:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/rdbmsmodel.RDBMSInfo'
+        description: Contains the actual response data (single object, list, or page)
+      error:
+        description: Error message for failed responses
+        example: Error message if failure
+        type: string
+      message:
+        description: Optional message for additional context
+        example: Operation successful
+        type: string
+      success:
+        description: Indicates whether the API call was successful
+        example: true
+        type: boolean
+    type: object
+  model.ApiResponse-rdbmsmodel_RDBMSListResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/rdbmsmodel.RDBMSListResponse'
+        description: Contains the actual response data (single object, list, or page)
+      error:
+        description: Error message for failed responses
+        example: Error message if failure
+        type: string
+      message:
+        description: Optional message for additional context
+        example: Operation successful
+        type: string
+      success:
+        description: Indicates whether the API call was successful
+        example: true
+        type: boolean
+    type: object
+  model.ApiResponse-rdbmsmodel_RecommendedRDBMS:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/rdbmsmodel.RecommendedRDBMS'
+        description: Contains the actual response data (single object, list, or page)
+      error:
+        description: Error message for failed responses
+        example: Error message if failure
+        type: string
+      message:
+        description: Optional message for additional context
+        example: Operation successful
+        type: string
+      success:
+        description: Indicates whether the API call was successful
+        example: true
+        type: boolean
+    type: object
   model.ApiResponse-storagemodel_IdList:
     properties:
       data:
@@ -3569,6 +3796,19 @@ definitions:
     type: object
   model.BastionNode:
     properties:
+      assigned:
+        description: |-
+          Assigned records who registered this bastion: BastionAssignedManual when an
+          operator named it, BastionAssignedAuto when the system picked any Running VM
+          with a public IP. The distinction matters when both kinds are registered for
+          one subnet: naming a bastion asserts the target is NOT directly reachable,
+          while an auto entry only asserts "some VM here has a public IP". Empty means
+          the entry predates this field (see pickBastion for how that is handled).
+        enum:
+        - manual
+        - auto
+        example: manual
+        type: string
       infraId:
         type: string
       nodeId:
@@ -4128,6 +4368,12 @@ definitions:
         items:
           type: string
         type: array
+      conditions:
+        description: Conditions hold structured state observations (Ready/Synced),
+          K8s-style
+        items:
+          $ref: '#/definitions/model.Condition'
+        type: array
       connectionConfig:
         $ref: '#/definitions/model.ConnConfig'
       connectionName:
@@ -4140,6 +4386,11 @@ definitions:
         description: CspResourceName is name assigned to the CSP resource. This name
           is internally used to handle the resource.
         example: we12fawefadf1221edcf
+        type: string
+      deletionRequestedAt:
+        description: |-
+          DeletionRequestedAt (RFC3339) marks a deletion tombstone: non-empty means the
+          record is kept until CSP-side removal is confirmed
         type: string
       description:
         type: string
@@ -4164,10 +4415,17 @@ definitions:
       resourceType:
         description: ResourceType is the type of the resource
         type: string
+      status:
+        description: Status is the lifecycle status; empty is treated as Available
+          for backward compatibility
+        example: Available
+        type: string
       systemLabel:
         description: SystemLabel is for describing the Resource in a keyword (any
           string can be used) for special System purpose
         example: Managed by CB-Tumblebug
+        type: string
+      systemMessage:
         type: string
       uid:
         description: Uid is universally unique identifier for the object, used for
@@ -4362,6 +4620,12 @@ definitions:
         items:
           type: string
         type: array
+      conditions:
+        description: Conditions hold structured state observations (Ready/Synced),
+          K8s-style
+        items:
+          $ref: '#/definitions/model.Condition'
+        type: array
       connectionConfig:
         $ref: '#/definitions/model.ConnConfig'
       connectionName:
@@ -4374,6 +4638,11 @@ definitions:
         description: CspResourceName is name assigned to the CSP resource. This name
           is internally used to handle the resource.
         example: we12fawefadf1221edcf
+        type: string
+      deletionRequestedAt:
+        description: |-
+          DeletionRequestedAt (RFC3339) marks a deletion tombstone: non-empty means the
+          record is kept until CSP-side removal is confirmed
         type: string
       description:
         type: string
@@ -4400,10 +4669,17 @@ definitions:
       resourceType:
         description: ResourceType is the type of the resource
         type: string
+      status:
+        description: Status is the lifecycle status; empty is treated as Available
+          for backward compatibility
+        example: Available
+        type: string
       systemLabel:
         description: SystemLabel is for describing the Resource in a keyword (any
           string can be used) for special System purpose
         example: Managed by CB-Tumblebug
+        type: string
+      systemMessage:
         type: string
       uid:
         description: Uid is universally unique identifier for the object, used for
@@ -4698,6 +4974,81 @@ definitions:
         description: Unique identifier for the machine (e.g., UUID)
         type: string
     type: object
+  onpremisemodel.GpuDetail:
+    properties:
+      index:
+        description: Device index (e.g., 0, 1)
+        example: 0
+        type: integer
+      memoryFree:
+        description: Available/Free memory in GB
+        example: 38
+        type: number
+      memoryTotal:
+        description: Memory capacity in GB
+        example: 40
+        type: number
+      memoryUsed:
+        description: Used memory in GB
+        example: 2
+        type: number
+      model:
+        description: Specific model for this device
+        example: NVIDIA A100-PCIE-40GB
+        type: string
+      pciBusId:
+        description: PCIe Bus identifier (e.g., "0000:01:00.0")
+        example: "0000:01:00.0"
+        type: string
+      uuid:
+        description: Unique device UUID from driver (e.g., NVML GPU UUID)
+        example: GPU-12345678-abcd-ef01-2345-...
+        type: string
+    type: object
+  onpremisemodel.GpuProperty:
+    properties:
+      architecture:
+        description: GPU Microarchitecture (e.g., "Ampere", "Hopper", "Ada Lovelace",
+          "Turing", "Volta")
+        example: Ampere
+        type: string
+      count:
+        description: Number of physical GPU devices/chips
+        example: 1
+        type: integer
+      cudaVersion:
+        description: Supported/Installed CUDA version (e.g., "12.2", "12.4")
+        example: "12.2"
+        type: string
+      details:
+        description: Detailed information per individual physical GPU device
+        items:
+          $ref: '#/definitions/onpremisemodel.GpuDetail'
+        type: array
+      driverVersion:
+        description: Installed GPU driver version
+        example: 535.129.03
+        type: string
+      model:
+        description: Primary GPU model name (e.g., "Tesla T4", "NVIDIA A100-PCIE-40GB",
+          "GeForce RTX 4090")
+        example: NVIDIA A100-PCIE-40GB
+        type: string
+      totalMemoryGB:
+        description: Total VRAM across all devices in GB
+        example: 40
+        type: number
+      type:
+        description: 'Accelerator type: "GPU", "NPU", "TPU" (defaults to "GPU")'
+        example: GPU
+        type: string
+      vendor:
+        description: GPU Vendor/Manufacturer (e.g., "NVIDIA", "AMD", "Intel")
+        example: NVIDIA
+        type: string
+    required:
+    - count
+    type: object
   onpremisemodel.K8sClusterProperty:
     properties:
       cniPlugin:
@@ -4878,6 +5229,10 @@ definitions:
         items:
           $ref: '#/definitions/onpremisemodel.FirewallRuleProperty'
         type: array
+      gpu:
+        allOf:
+        - $ref: '#/definitions/onpremisemodel.GpuProperty'
+        description: GPU accelerator hardware information (optional)
       hostname:
         type: string
       interfaces:
@@ -4980,6 +5335,914 @@ definitions:
       source:
         description: Optionally stores the source address (used for policy-based routing)
         type: string
+    type: object
+  rdbmsmodel.CloudProperty:
+    properties:
+      csp:
+        description: Cloud service provider (e.g., aws, azure, gcp, ncp, alibaba,
+          etc.)
+        example: aws
+        type: string
+      region:
+        description: Region identifier
+        example: ap-northeast-2
+        type: string
+      zone:
+        description: Optional Zone identifier
+        example: ap-northeast-2a
+        type: string
+    type: object
+  rdbmsmodel.Condition:
+    properties:
+      lastTransitionTime:
+        type: string
+      message:
+        type: string
+      reason:
+        type: string
+      status:
+        type: string
+      type:
+        type: string
+    type: object
+  rdbmsmodel.ConnConfig:
+    properties:
+      configName:
+        type: string
+      credentialHolder:
+        type: string
+      credentialName:
+        type: string
+      driverName:
+        type: string
+      providerName:
+        type: string
+      regionDetail:
+        $ref: '#/definitions/rdbmsmodel.RegionDetail'
+      regionRepresentative:
+        type: boolean
+      regionZoneInfo:
+        $ref: '#/definitions/rdbmsmodel.RegionZoneInfo'
+      regionZoneInfoName:
+        type: string
+      verified:
+        type: boolean
+    type: object
+  rdbmsmodel.CpuProperty:
+    properties:
+      architecture:
+        example: x86_64
+        type: string
+      cores:
+        description: Number of physical cores per CPU
+        example: 2
+        type: integer
+      cpus:
+        description: Number of physical CPUs (sockets)
+        example: 1
+        type: integer
+      maxSpeed:
+        description: Maximum speed in GHz
+        example: 3.6
+        type: number
+      model:
+        example: Intel(R) Xeon(R) Gold 6140 CPU @ 2.30GHz
+        type: string
+      threads:
+        description: Number of logical CPUs (threads) per CPU
+        example: 2
+        type: integer
+      vendor:
+        example: GenuineIntel
+        type: string
+    required:
+    - cores
+    - cpus
+    - threads
+    type: object
+  rdbmsmodel.DBEngineProperty:
+    properties:
+      engine:
+        description: '"mysql", "mariadb", "postgresql"'
+        example: mysql
+        type: string
+      engineVersion:
+        description: e.g. "8.0", "10.5"
+        example: "8.0"
+        type: string
+      port:
+        description: 'DB port (default: 3306)'
+        example: 3306
+        type: integer
+      role:
+        description: '"primary" (writer), "replica" (reader), "standalone"'
+        example: primary
+        type: string
+    required:
+    - engine
+    - engineVersion
+    type: object
+  rdbmsmodel.DBNodeProperty:
+    properties:
+      cpu:
+        $ref: '#/definitions/rdbmsmodel.CpuProperty'
+      dataDisks:
+        items:
+          $ref: '#/definitions/rdbmsmodel.DiskProperty'
+        type: array
+      hostname:
+        example: db-node-01
+        type: string
+      machineId:
+        example: node-550e8400-e29b-41d4-a716-446655440000
+        type: string
+      memory:
+        $ref: '#/definitions/rdbmsmodel.MemoryProperty'
+      rootDisk:
+        $ref: '#/definitions/rdbmsmodel.DiskProperty'
+    required:
+    - cpu
+    - memory
+    type: object
+  rdbmsmodel.DiskProperty:
+    properties:
+      available:
+        description: Unit GB
+        type: integer
+      label:
+        example: /
+        type: string
+      totalSize:
+        description: Unit GB
+        example: 100
+        type: integer
+      type:
+        description: SSD, HDD
+        example: SSD
+        type: string
+      used:
+        description: Unit GB
+        type: integer
+    required:
+    - totalSize
+    - type
+    type: object
+  rdbmsmodel.InnerDatabaseProperty:
+    properties:
+      characterSet:
+        example: utf8mb4
+        type: string
+      collation:
+        example: utf8mb4_unicode_ci
+        type: string
+      databaseName:
+        example: sampledb
+        type: string
+      rowCount:
+        example: 150000
+        type: integer
+      sizeMb:
+        example: 512.5
+        type: number
+      tableCount:
+        example: 24
+        type: integer
+    required:
+    - databaseName
+    type: object
+  rdbmsmodel.KeyValue:
+    properties:
+      key:
+        type: string
+      value:
+        type: string
+    type: object
+  rdbmsmodel.Location:
+    properties:
+      display:
+        type: string
+      latitude:
+        type: number
+      longitude:
+        type: number
+    type: object
+  rdbmsmodel.MemoryProperty:
+    properties:
+      available:
+        description: Unit GiB
+        type: integer
+      totalSize:
+        description: Unit GiB
+        example: 4
+        type: integer
+      type:
+        example: DDR4
+        type: string
+      used:
+        description: Unit GiB
+        type: integer
+    required:
+    - totalSize
+    type: object
+  rdbmsmodel.RDBMSAdminUserNameRequirement:
+    properties:
+      fixedValue:
+        type: string
+      note:
+        type: string
+      reservedValues:
+        items:
+          type: string
+        type: array
+    type: object
+  rdbmsmodel.RDBMSAdminUserPasswordRequirement:
+    properties:
+      forbidsSpecialChar:
+        type: boolean
+      maxLength:
+        type: integer
+      minLength:
+        type: integer
+      note:
+        type: string
+      requiresSpecialChar:
+        type: boolean
+    type: object
+  rdbmsmodel.RDBMSCSPSupportInfo:
+    properties:
+      dbOperationMethod:
+        enum:
+        - cspNativeApi
+        - sqlFallback
+        example: cspNativeApi
+        type: string
+      note:
+        example: Storage type selection is not supported on this CSP.
+        type: string
+      storageTypeSelectable:
+        example: true
+        type: boolean
+      supported:
+        example: true
+        type: boolean
+      supportedDBEngines:
+        example:
+        - mysql
+        - mariadb
+        items:
+          type: string
+        type: array
+      supportsTag:
+        example: true
+        type: boolean
+    type: object
+  rdbmsmodel.RDBMSCapabilityResponse:
+    properties:
+      resourceType:
+        example: rdbms
+        type: string
+      supports:
+        $ref: '#/definitions/rdbmsmodel.RDBMSMetaInfo'
+    type: object
+  rdbmsmodel.RDBMSCreateRequest:
+    properties:
+      adminUserName:
+        example: admin
+        type: string
+      adminUserPassword:
+        example: Password123!
+        type: string
+      autoFillDefaults:
+        example: false
+        type: boolean
+      backupRetentionDays:
+        example: 7
+        type: integer
+      connectionName:
+        example: aws-ap-northeast-2
+        type: string
+      dbEngine:
+        enum:
+        - mysql
+        - mariadb
+        example: mysql
+        type: string
+      dbEngineVersion:
+        example: "8.0"
+        type: string
+      dbInstanceSpec:
+        example: db.t3.medium
+        type: string
+      deletionProtection:
+        example: false
+        type: boolean
+      description:
+        example: managed by CB-Tumblebug
+        type: string
+      highAvailability:
+        example: false
+        type: boolean
+      iops:
+        example: "3000"
+        type: string
+      name:
+        example: rdbms-01
+        type: string
+      nhnDBSGToAllowAllInbound:
+        example: false
+        type: boolean
+      publicAccess:
+        example: false
+        type: boolean
+      securityGroupIds:
+        example:
+        - sg-01
+        items:
+          type: string
+        type: array
+      storageSize:
+        example: 100
+        type: integer
+      storageType:
+        example: gp3
+        type: string
+      subnetIds:
+        example:
+        - subnet-01
+        items:
+          type: string
+        type: array
+      tagList:
+        items:
+          $ref: '#/definitions/rdbmsmodel.KeyValue'
+        type: array
+      vNetId:
+        example: vnet-01
+        type: string
+    required:
+    - adminUserName
+    - adminUserPassword
+    - connectionName
+    - dbEngine
+    - name
+    - vNetId
+    type: object
+  rdbmsmodel.RDBMSDBInstanceSpecInfo:
+    properties:
+      memSizeMiB:
+        example: "4096"
+        type: string
+      name:
+        example: db.t3.medium
+        type: string
+      storageSizeRangeGB:
+        $ref: '#/definitions/rdbmsmodel.StorageSizeRange'
+      vCpuClockGHz:
+        example: "2.5"
+        type: string
+      vCpuCount:
+        example: "2"
+        type: string
+    type: object
+  rdbmsmodel.RDBMSDBMSRequirement:
+    properties:
+      defaultPort:
+        type: integer
+      deprecatedVersions:
+        description: DeprecatedVersions lists engine versions that are deprecated
+          by the CSP and discouraged for new deployments.
+        items:
+          type: string
+        type: array
+      endOfLifeVersions:
+        description: EndOfLifeVersions lists engine versions that have reached official
+          End of Life (EOL) and cannot be provisioned.
+        items:
+          type: string
+        type: array
+      maxStorageSize:
+        type: integer
+      minStorageSize:
+        type: integer
+      note:
+        type: string
+      referenceDBInstanceSpec:
+        type: string
+      referenceEngineVersion:
+        type: string
+    type: object
+  rdbmsmodel.RDBMSDatabaseCreateReq:
+    properties:
+      adminUserPassword:
+        example: Password123!
+        type: string
+      databaseName:
+        example: sampledb
+        type: string
+    required:
+    - adminUserPassword
+    - databaseName
+    type: object
+  rdbmsmodel.RDBMSDatabaseListResponse:
+    properties:
+      databases:
+        example:
+        - sampledb
+        items:
+          type: string
+        type: array
+    type: object
+  rdbmsmodel.RDBMSDatabaseRequirement:
+    properties:
+      maxDatabaseNameLength:
+        type: integer
+      note:
+        type: string
+      reservedDatabaseNames:
+        items:
+          type: string
+        type: array
+    type: object
+  rdbmsmodel.RDBMSInfo:
+    properties:
+      adminUserName:
+        example: admin
+        type: string
+      backupRetentionDays:
+        example: 7
+        type: integer
+      backupTime:
+        example: "03:00"
+        type: string
+      conditions:
+        items:
+          $ref: '#/definitions/rdbmsmodel.Condition'
+        type: array
+      connectionConfig:
+        $ref: '#/definitions/rdbmsmodel.ConnConfig'
+      connectionName:
+        type: string
+      cspResourceId:
+        type: string
+      cspResourceName:
+        type: string
+      dbEngine:
+        example: mysql
+        type: string
+      dbEngineVersion:
+        example: "8.0"
+        type: string
+      dbInstanceSpec:
+        example: db.t3.medium
+        type: string
+      dbInstanceType:
+        enum:
+        - Primary
+        - ReadReplica
+        example: Primary
+        type: string
+      deletionProtection:
+        example: false
+        type: boolean
+      deletionRequestedAt:
+        type: string
+      description:
+        type: string
+      encryption:
+        type: boolean
+      endpoint:
+        example: rdbms-01.xxxx.rds.amazonaws.com:3306
+        type: string
+      highAvailability:
+        example: false
+        type: boolean
+      id:
+        example: rdbms-01
+        type: string
+      iops:
+        example: "3000"
+        type: string
+      name:
+        example: rdbms-01
+        type: string
+      nhnDBSGToAllowAllInbound:
+        type: boolean
+      publicAccess:
+        example: false
+        type: boolean
+      resourceType:
+        example: rdbms
+        type: string
+      securityGroupIds:
+        items:
+          type: string
+        type: array
+      status:
+        type: string
+      storageSize:
+        example: 100
+        type: integer
+      storageType:
+        example: gp3
+        type: string
+      subnetIds:
+        items:
+          type: string
+        type: array
+      systemMessage:
+        type: string
+      tagList:
+        items:
+          $ref: '#/definitions/rdbmsmodel.KeyValue'
+        type: array
+      uid:
+        example: wef12awefadf1221edcf
+        type: string
+      vNetId:
+        type: string
+    type: object
+  rdbmsmodel.RDBMSListResponse:
+    properties:
+      rdbms:
+        items:
+          $ref: '#/definitions/rdbmsmodel.RDBMSInfo'
+        type: array
+    type: object
+  rdbmsmodel.RDBMSMetaInfo:
+    properties:
+      adminUserNameRequirement:
+        $ref: '#/definitions/rdbmsmodel.RDBMSAdminUserNameRequirement'
+      adminUserPasswordRequirement:
+        $ref: '#/definitions/rdbmsmodel.RDBMSAdminUserPasswordRequirement'
+      backupRetentionRange:
+        type: string
+      connectionName:
+        example: aws-ap-northeast-2
+        type: string
+      databaseRequirements:
+        $ref: '#/definitions/rdbmsmodel.RDBMSDatabaseRequirement'
+      dbEngine:
+        example: mysql
+        type: string
+      dbInstanceSpecOptions:
+        example:
+        - db.t3.medium
+        items:
+          type: string
+        type: array
+      dbInstanceSpecs:
+        items:
+          $ref: '#/definitions/rdbmsmodel.RDBMSDBInstanceSpecInfo'
+        type: array
+      dbOperationMethod:
+        example: cspNativeApi
+        type: string
+      dbmsRequirements:
+        additionalProperties:
+          $ref: '#/definitions/rdbmsmodel.RDBMSDBMSRequirement'
+        type: object
+      defaultStorageType:
+        example: gp3
+        type: string
+      liveSupportedEngines:
+        items:
+          type: string
+        type: array
+      notes:
+        $ref: '#/definitions/rdbmsmodel.RDBMSNotes'
+      providerName:
+        example: aws
+        type: string
+      regionName:
+        example: ap-northeast-2
+        type: string
+      requiresSecurityGroup:
+        example: true
+        type: boolean
+      requiresSubnet:
+        example: true
+        type: boolean
+      staticFields:
+        items:
+          $ref: '#/definitions/rdbmsmodel.StaticFieldNote'
+        type: array
+      storageSizeRange:
+        $ref: '#/definitions/rdbmsmodel.StorageSizeRange'
+      storageTypeGuidance:
+        additionalProperties:
+          $ref: '#/definitions/rdbmsmodel.StorageTypeNote'
+        type: object
+      storageTypeOptions:
+        example:
+        - gp2
+        - gp3
+        items:
+          type: string
+        type: array
+      supportedVersions:
+        example:
+        - "8.0"
+        - "8.4"
+        items:
+          type: string
+        type: array
+      supportsBackup:
+        example: true
+        type: boolean
+      supportsDeletionProtection:
+        example: true
+        type: boolean
+      supportsEncryption:
+        example: true
+        type: boolean
+      supportsHighAvailability:
+        example: true
+        type: boolean
+      supportsPublicAccess:
+        example: true
+        type: boolean
+      supportsStorageSizeConfiguration:
+        example: true
+        type: boolean
+      supportsStorageTypeSelection:
+        example: true
+        type: boolean
+      supportsTag:
+        example: true
+        type: boolean
+    type: object
+  rdbmsmodel.RDBMSNotes:
+    properties:
+      storageTypes:
+        items:
+          $ref: '#/definitions/rdbmsmodel.StorageTypeNote'
+        type: array
+    type: object
+  rdbmsmodel.RDBMSSupportResponse:
+    properties:
+      resourceType:
+        example: rdbms
+        type: string
+      supports:
+        additionalProperties:
+          $ref: '#/definitions/rdbmsmodel.RDBMSCSPSupportInfo'
+        type: object
+    type: object
+  rdbmsmodel.RecommendedRDBMS:
+    properties:
+      description:
+        description: Human-readable summary
+        type: string
+      status:
+        description: '"recommended", "partial", "failed"'
+        type: string
+      targetCloud:
+        $ref: '#/definitions/rdbmsmodel.CloudProperty'
+      targetRDBMSInstances:
+        items:
+          $ref: '#/definitions/rdbmsmodel.TargetRDBMSInstance'
+        type: array
+      warnings:
+        description: CSP feature-support warnings
+        items:
+          type: string
+        type: array
+    type: object
+  rdbmsmodel.RegionDetail:
+    properties:
+      description:
+        type: string
+      location:
+        $ref: '#/definitions/rdbmsmodel.Location'
+      regionId:
+        type: string
+      regionName:
+        type: string
+      representativeZone:
+        type: string
+      zones:
+        items:
+          type: string
+        type: array
+    type: object
+  rdbmsmodel.RegionZoneInfo:
+    properties:
+      assignedRegion:
+        type: string
+      assignedZone:
+        type: string
+    type: object
+  rdbmsmodel.SourceRDBMSProperty:
+    properties:
+      dbEngine:
+        allOf:
+        - $ref: '#/definitions/rdbmsmodel.DBEngineProperty'
+        description: DBEngine represents the database engine software (type, version,
+          port, role, HA).
+      dbNode:
+        allOf:
+        - $ref: '#/definitions/rdbmsmodel.DBNodeProperty'
+        description: DBNode represents the underlying host/server infrastructure specs
+          (CPU, Memory, Disks).
+      description:
+        description: Description is an optional free-form note or business purpose.
+        example: Production billing service master database
+        type: string
+      displayName:
+        description: DisplayName is an optional human-friendly alias or cloud DB identifier
+          (e.g. "billing-db").
+        example: billing-db
+        type: string
+      innerDatabases:
+        description: InnerDatabases lists the logical tenant databases residing inside
+          this RDBMS instance.
+        items:
+          $ref: '#/definitions/rdbmsmodel.InnerDatabaseProperty'
+        type: array
+    required:
+    - dbEngine
+    - dbNode
+    type: object
+  rdbmsmodel.StaticFieldNote:
+    properties:
+      field:
+        example: storageSizeRange
+        type: string
+      note:
+        example: Static fallback value
+        type: string
+    type: object
+  rdbmsmodel.StorageSizeRange:
+    properties:
+      max:
+        example: 1000
+        type: integer
+      min:
+        example: 10
+        type: integer
+    type: object
+  rdbmsmodel.StorageTypeNote:
+    properties:
+      compatibleSpecs:
+        example:
+        - rds.mysql.*
+        items:
+          type: string
+        type: array
+      constraints:
+        example: Requires 'iops' parameter (e.g., '3000')
+        type: string
+      description:
+        example: Cost-effective, 3000 baseline IOPS, recommended for general workloads
+        type: string
+      displayName:
+        example: General Purpose SSD v3
+        type: string
+      incompatibleSpecs:
+        example:
+        - mysql.n4.*
+        items:
+          type: string
+        type: array
+      iopsRange:
+        $ref: '#/definitions/rdbmsmodel.StorageSizeRange'
+      maxSize:
+        example: 65536
+        type: integer
+      minSize:
+        example: 100
+        type: integer
+      recommendationLevel:
+        enum:
+        - legacy
+        - standard
+        - recommended
+        - premium
+        example: recommended
+        type: string
+      recommended:
+        example: true
+        type: boolean
+      requiresIops:
+        example: true
+        type: boolean
+      storageType:
+        example: gp3
+        type: string
+    type: object
+  rdbmsmodel.TargetDatabase:
+    properties:
+      characterSet:
+        example: utf8mb4
+        type: string
+      databaseName:
+        example: order_db
+        type: string
+    required:
+    - databaseName
+    type: object
+  rdbmsmodel.TargetRDBMSInstance:
+    properties:
+      adminUserName:
+        description: Admin Credentials
+        example: dbadmin
+        type: string
+      adminUserPassword:
+        example: Password123!
+        type: string
+      backupRetentionDays:
+        example: 7
+        type: integer
+      databases:
+        description: Optional Inner Databases to create after instance provisioning
+        items:
+          $ref: '#/definitions/rdbmsmodel.TargetDatabase'
+        type: array
+      dbEngine:
+        description: Target Engine & Version
+        example: mysql
+        type: string
+      dbEngineVersion:
+        example: "8.0"
+        type: string
+      dbInstanceSpec:
+        description: Target Spec & Storage
+        example: db.t3.medium
+        type: string
+      deletionProtection:
+        example: false
+        type: boolean
+      highAvailability:
+        description: Availability & Protection
+        example: false
+        type: boolean
+      iops:
+        example: "3000"
+        type: string
+      nhnDBSGToAllowAllInbound:
+        description: CSP-Specific Options
+        example: true
+        type: boolean
+      publicAccess:
+        example: true
+        type: boolean
+      rdbmsName:
+        description: Target instance name (supports Late-Binding nameSeed)
+        example: mig-rdbms-01
+        type: string
+      securityGroupIds:
+        example:
+        - '["sg-01"]'
+        items:
+          type: string
+        type: array
+      sourceInstanceName:
+        description: Source traceability
+        example: prod-mysql-01
+        type: string
+      sourceMachineId:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      storageSize:
+        description: Disk size in GB
+        example: 100
+        type: integer
+      storageType:
+        example: gp3
+        type: string
+      subnetIds:
+        example:
+        - '["subnet-01"'
+        - '"subnet-02"]'
+        items:
+          type: string
+        type: array
+      vNetId:
+        description: Network & Access
+        example: vnet-01
+        type: string
+    required:
+    - adminUserName
+    - dbEngine
+    - rdbmsName
+    type: object
+  recommendation.TargetPreferences:
+    properties:
+      adminUserName:
+        example: dbadmin
+        type: string
+      backupRetentionDays:
+        example: 7
+        type: integer
+      highAvailability:
+        example: false
+        type: boolean
+      nhnDBSGToAllowAllInbound:
+        example: false
+        type: boolean
+      publicAccess:
+        example: true
+        type: boolean
     type: object
   resource.RestGetAllSecurityGroupResponse:
     properties:
@@ -5766,6 +7029,11 @@ definitions:
       cspImageName:
         example: csp-06eb41e14121c550a
         type: string
+      deletionRequestedAt:
+        description: |-
+          DeletionRequestedAt (RFC3339) marks a deletion tombstone (customImage only):
+          non-empty means the row is kept until CSP-side removal is confirmed
+        type: string
       description:
         type: string
       details:
@@ -5851,6 +7119,8 @@ definitions:
         type: string
       systemLabel:
         example: Managed by CB-Tumblebug
+        type: string
+      systemMessage:
         type: string
       uid:
         example: wef12awefadf1221edcf
@@ -7625,6 +8895,350 @@ paths:
       summary: Get metadata of an object in an object storage bucket
       tags:
       - '[Migration] Managed Object Storage'
+  /migration/middleware/ns/{nsId}/rdbms:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve the list of all migrated managed RDBMS / RDS instances
+        in the namespace
+      operationId: ListRDBMS
+      parameters:
+      - default: mig01
+        description: Namespace ID
+        in: path
+        name: nsId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved RDBMS list
+          schema:
+            $ref: '#/definitions/model.ApiResponse-rdbmsmodel_RDBMSListResponse'
+        "400":
+          description: Invalid request parameters
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+      summary: List migrated Managed RDBMS (RDS) instances
+      tags:
+      - '[Migration] Managed RDBMS'
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Provision and migrate managed RDBMS / RDS instances in target cloud based on recommendation results (supports AWS RDS, GCP Cloud SQL, Azure Database, NCP Cloud DB, NHN RDS, Alibaba ApsaraDB, TencentDB, IBM Databases)
+
+        [Note]
+        - This API provisions managed RDBMS instances in the target cloud within the specified namespace.
+        - Input should be the output from the RecommendRDBMS API.
+        - Connection name is automatically resolved from CSP and region in the request body.
+
+        [Note] `nameSeed` enables dynamic naming via **Late Binding**.
+        - If `nameSeed` query param is set (e.g., `?nameSeed=my`), instance names are prefixed: `my-rdbms-01`.
+
+        By default this API runs synchronously. Send header `Prefer: respond-async` to run it
+        asynchronously instead (recommended due to CSP RDS provisioning time of 5-10 minutes): receive 202 Accepted with a reqId.
+      operationId: MigrateRDBMS
+      parameters:
+      - default: mig01
+        description: Namespace ID
+        in: path
+        name: nsId
+        required: true
+        type: string
+      - description: Optional prefix for instance names (e.g., 'my' → 'my-rdbms-01')
+        in: query
+        name: nameSeed
+        type: string
+      - description: RDBMS migration request (use RecommendRDBMS response)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controller.MigrateRDBMSRequest'
+      - description: Unique request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Set to 'respond-async' to run this migration asynchronously
+        enum:
+        - respond-async
+        in: header
+        name: Prefer
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created - Managed RDBMS instances created successfully
+        "202":
+          description: Migration started asynchronously - use GET /request/{reqId}
+            to check status
+          schema:
+            $ref: '#/definitions/model.ApiResponse-model_AsyncJobResponse'
+        "400":
+          description: Invalid request parameters
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+        "500":
+          description: Internal server error during RDBMS creation
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+        "503":
+          description: Too many requests
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+      summary: Migrate Managed RDBMS (RDS) instances to cloud
+      tags:
+      - '[Migration] Managed RDBMS'
+  /migration/middleware/ns/{nsId}/rdbms/{rdbmsId}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a specific migrated managed RDBMS / RDS instance in the
+        namespace
+      operationId: DeleteRDBMS
+      parameters:
+      - default: mig01
+        description: Namespace ID
+        in: path
+        name: nsId
+        required: true
+        type: string
+      - description: RDBMS Instance ID
+        in: path
+        name: rdbmsId
+        required: true
+        type: string
+      - description: Deletion option (e.g., 'force')
+        in: query
+        name: option
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully deleted managed RDBMS instance
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+        "400":
+          description: Invalid request parameters
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+      summary: Delete a migrated Managed RDBMS (RDS) instance
+      tags:
+      - '[Migration] Managed RDBMS'
+    get:
+      consumes:
+      - application/json
+      description: Retrieve details of a specific migrated managed RDBMS / RDS instance
+        in the namespace
+      operationId: GetRDBMS
+      parameters:
+      - default: mig01
+        description: Namespace ID
+        in: path
+        name: nsId
+        required: true
+        type: string
+      - description: RDBMS Instance ID
+        in: path
+        name: rdbmsId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved RDBMS details
+          schema:
+            $ref: '#/definitions/model.ApiResponse-rdbmsmodel_RDBMSInfo'
+        "400":
+          description: Invalid request parameters
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+      summary: Get details of a migrated Managed RDBMS (RDS) instance
+      tags:
+      - '[Migration] Managed RDBMS'
+  /migration/middleware/ns/{nsId}/rdbms/{rdbmsId}/database:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve the list of logical databases inside an existing managed
+        RDBMS instance
+      operationId: ListRDBMSDatabases
+      parameters:
+      - default: mig01
+        description: Namespace ID
+        in: path
+        name: nsId
+        required: true
+        type: string
+      - description: RDBMS Instance ID
+        in: path
+        name: rdbmsId
+        required: true
+        type: string
+      - description: Admin User Password
+        in: header
+        name: X-Admin-User-Password
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved logical databases
+          schema:
+            $ref: '#/definitions/model.ApiResponse-rdbmsmodel_RDBMSDatabaseListResponse'
+        "400":
+          description: Invalid request parameters
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+      summary: List logical databases inside a Managed RDBMS (RDS) instance
+      tags:
+      - '[Migration] Managed RDBMS'
+    post:
+      consumes:
+      - application/json
+      description: Create a new logical database inside an existing managed RDBMS
+        instance
+      operationId: CreateRDBMSDatabase
+      parameters:
+      - default: mig01
+        description: Namespace ID
+        in: path
+        name: nsId
+        required: true
+        type: string
+      - description: RDBMS Instance ID
+        in: path
+        name: rdbmsId
+        required: true
+        type: string
+      - description: Database creation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/rdbmsmodel.RDBMSDatabaseCreateReq'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully created logical database
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+        "400":
+          description: Invalid request parameters
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+      summary: Create a logical database inside a Managed RDBMS (RDS) instance
+      tags:
+      - '[Migration] Managed RDBMS'
+  /migration/middleware/ns/{nsId}/rdbms/{rdbmsId}/database/{dbName}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a logical database inside an existing managed RDBMS instance
+      operationId: DeleteRDBMSDatabase
+      parameters:
+      - default: mig01
+        description: Namespace ID
+        in: path
+        name: nsId
+        required: true
+        type: string
+      - description: RDBMS Instance ID
+        in: path
+        name: rdbmsId
+        required: true
+        type: string
+      - description: Database Name
+        in: path
+        name: dbName
+        required: true
+        type: string
+      - description: Admin User Password
+        in: header
+        name: X-Admin-User-Password
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully deleted logical database
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+        "400":
+          description: Invalid request parameters
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+      summary: Delete a logical database inside a Managed RDBMS (RDS) instance
+      tags:
+      - '[Migration] Managed RDBMS'
+  /migration/middleware/ns/{nsId}/rdbms/validate:
+    post:
+      consumes:
+      - application/json
+      description: Validate managed RDBMS configuration against target cloud constraints
+        before actual migration
+      operationId: ValidateMigrateRDBMS
+      parameters:
+      - default: mig01
+        description: Namespace ID
+        in: path
+        name: nsId
+        required: true
+        type: string
+      - description: RDBMS creation request to validate
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/rdbmsmodel.RDBMSCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully validated RDBMS creation configuration
+          schema:
+            $ref: '#/definitions/model.ApiResponse-rdbmsmodel_RDBMSCreateRequest'
+        "400":
+          description: Invalid request parameters
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+      summary: Validate Managed RDBMS (RDS) creation request against target cloud
+      tags:
+      - '[Migration] Managed RDBMS'
   /migration/middleware/objectStorage/inspect:
     post:
       consumes:
@@ -9096,13 +10710,13 @@ paths:
       - application/json
       description: |
         When a parent/primary resource is renamed (e.g., VNet), this API updates all
-        child/dependent references in the model (e.g., SecurityGroup.VNetId, SubGroup.VNetId).
+        child/dependent references in the model (e.g., SecurityGroup.VNetId, NodeGroup.VNetId).
 
         **Supported resourceType values** (cb-tumblebug convention):
-        - `vNet` : Rename VNet → propagates to SecurityGroup.VNetId, SubGroup.VNetId
-        - `subnet` : Rename Subnet → propagates to SubGroup.SubnetId
-        - `sshKey` : Rename SSH Key → propagates to SubGroup.SshKeyId
-        - `securityGroup` : Rename SecurityGroup → propagates to SubGroup.SecurityGroupIds
+        - `vNet` : Rename VNet → propagates to SecurityGroup.VNetId, NodeGroup.VNetId
+        - `subnet` : Rename Subnet → propagates to NodeGroup.SubnetId
+        - `sshKey` : Rename SSH Key → propagates to NodeGroup.SshKeyId
+        - `securityGroup` : Rename SecurityGroup → propagates to NodeGroup.SecurityGroupIds
         - `infra` : Rename Infra (no child propagation)
 
         After propagation, names are validated for referential integrity.
@@ -9688,6 +11302,11 @@ paths:
       description: Forward object storage support request to CB-Tumblebug via Proxy
         (Returns ObjectStorageSupportResponse)
       operationId: GetObjectStorageSupport
+      parameters:
+      - description: CSP Type filter (e.g., aws, azure, gcp)
+        in: query
+        name: providerName
+        type: string
       produces:
       - application/json
       responses:
@@ -9698,6 +11317,164 @@ paths:
       summary: Get CSP feature support map for object storage (Proxied to Tumblebug)
       tags:
       - '[Recommendation] Managed Object Storage'
+  /recommendation/middleware/rdbms:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Recommend optimal Managed RDBMS / RDS (MySQL, MariaDB) instance specs, engine versions, and storage configurations for target cloud migration (supports AWS RDS, GCP Cloud SQL, Azure Database, Alibaba ApsaraDB, TencentDB, IBM Databases, NCP Cloud DB, NHN RDS)
+
+        [Note] `desiredCsp` and `desiredRegion` are required.
+        - `desiredCsp` and `desiredRegion` can be set in the query parameter or the request body.
+        - If set in the request body, the query parameter values will be overridden.
+
+        [Note] The recommended instance names use default patterns (`mig-rdbms-01`, `mig-rdbms-02`, ...).
+        - To apply a naming prefix at migration time, use the `nameSeed` query parameter on the migration API.
+      operationId: RecommendRDBMS
+      parameters:
+      - description: Specify source RDBMS instances to be migrated
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controller.RecommendRDBMSRequest'
+      - default: aws
+        description: CSP (e.g., aws, azure, gcp)
+        enum:
+        - aws
+        - azure
+        - gcp
+        - alibaba
+        - tencent
+        - ibm
+        - openstack
+        - ncp
+        - nhn
+        in: query
+        name: desiredCsp
+        type: string
+      - default: ap-northeast-2
+        description: Region (e.g., ap-northeast-2)
+        in: query
+        name: desiredRegion
+        type: string
+      - description: Unique request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully recommended managed RDBMS
+          schema:
+            $ref: '#/definitions/model.ApiResponse-rdbmsmodel_RecommendedRDBMS'
+        "400":
+          description: Invalid request parameters
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+        "500":
+          description: Internal server error during recommendation
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+      summary: Recommend Managed RDBMS (RDS) for cloud migration
+      tags:
+      - '[Recommendation] Managed RDBMS'
+  /recommendation/middleware/rdbms/capability:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve real-time engine versions, DB instance specs, and storage
+        options for Managed RDBMS / RDS (Amazon RDS, Cloud SQL, Azure Database, etc.)
+        from CB-Tumblebug
+      operationId: GetRDBMSCapability
+      parameters:
+      - description: Connection Name (e.g., aws-ap-northeast-2)
+        in: query
+        name: connectionName
+        required: true
+        type: string
+      - description: Database Engine filter (e.g., mysql, mariadb)
+        in: query
+        name: dbEngine
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rdbmsmodel.RDBMSCapabilityResponse'
+        "400":
+          description: Invalid request parameters
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+      summary: Get real-time capability and spec options for Managed RDBMS (RDS)
+      tags:
+      - '[Recommendation] Managed RDBMS'
+  /recommendation/middleware/rdbms/support:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve CSP feature support matrix for managed RDBMS / RDS (Amazon
+        RDS, Google Cloud SQL, Azure Database, NCP Cloud DB, etc.) via CB-Tumblebug
+      operationId: GetRDBMSSupport
+      parameters:
+      - description: CSP Type filter (e.g., aws, azure, gcp)
+        in: query
+        name: providerName
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rdbmsmodel.RDBMSSupportResponse'
+      summary: Get CSP support map for Managed RDBMS (RDS)
+      tags:
+      - '[Recommendation] Managed RDBMS'
+  /recommendation/middleware/rdbms/validate:
+    post:
+      consumes:
+      - application/json
+      description: Perform strict dry-run validation for a Managed RDBMS / RDS configuration
+        against target cloud constraints
+      operationId: ValidateRDBMSRecommendation
+      parameters:
+      - default: mig01
+        description: Namespace ID (defaults to 'mig01')
+        in: query
+        name: nsId
+        type: string
+      - description: RDBMS creation request to validate
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/rdbmsmodel.RDBMSCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully validated RDBMS configuration
+          schema:
+            $ref: '#/definitions/model.ApiResponse-rdbmsmodel_RDBMSCreateRequest'
+        "400":
+          description: Invalid request parameters
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+        "500":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/model.ApiResponse-any'
+      summary: Validate Managed RDBMS (RDS) configuration against target cloud
+      tags:
+      - '[Recommendation] Managed RDBMS'
   /recommendation/multiInfra:
     post:
       consumes:

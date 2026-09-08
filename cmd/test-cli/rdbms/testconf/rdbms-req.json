@@ -1,0 +1,47 @@
+{
+  "nameSeed": "test",
+  "sourceRDBMSInstances": [
+    {
+      "displayName": "Source MySQL 01",
+      "description": "Production database instance discovered from on-premise node",
+      "dbNode": {
+        "hostname": "db-server-01",
+        "machineId": "node-550e8400-e29b-41d4-a716-446655440000",
+        "cpu": {
+          "cpus": 1,
+          "cores": 2,
+          "threads": 2,
+          "maxSpeed": 2.4
+        },
+        "memory": {
+          "totalSize": 4
+        },
+        "rootDisk": {
+          "label": "/",
+          "totalSize": 50,
+          "type": "SSD"
+        },
+        "dataDisks": [
+          {
+            "label": "/data",
+            "totalSize": 50,
+            "type": "SSD"
+          }
+        ]
+      },
+      "dbEngine": {
+        "engine": "mysql",
+        "engineVersion": "8.0",
+        "port": 3306,
+        "role": "primary"
+      },
+      "innerDatabases": [
+        {
+          "databaseName": "sampledb",
+          "characterSet": "utf8mb4",
+          "collation": "utf8mb4_unicode_ci"
+        }
+      ]
+    }
+  ]
+}

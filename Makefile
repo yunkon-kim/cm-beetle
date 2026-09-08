@@ -9,7 +9,7 @@ GO := $(GOPROXY_OPTION) go
 GOPATH := $(shell go env GOPATH)
 SWAG := ~/go/bin/swag
 
-.PHONY: all dependency tidy lint update swag swagger build arm prod run stop clean help
+.PHONY: all dependency tidy lint update swag swagger build arm prod run stop clean help up up-no-cache compose compose-no-cache test-infra test-rdbms test-infra-with-nlb test-os test-data test-async test-rate-limiting test-multi-infra-recommendation test-k8s-infra-recommendation test-k8s-infra-migration
 
 all: swag build ## Default target: build the project
 
@@ -107,6 +107,7 @@ clean: ## Remove previous build
 	@cd cmd/test-cli/multi-infra-recommendation && $(GO) clean
 	@cd cmd/test-cli/k8s-infra-recommendation && $(GO) clean
 	@cd cmd/test-cli/k8s-infra-migration && $(GO) clean
+	@cd cmd/test-cli/rdbms && $(GO) clean
 	@echo "Cleaned!"
 
 test-infra: ## Run the infra migration test CLI for all CSP-Region pairs
@@ -116,6 +117,14 @@ test-infra: ## Run the infra migration test CLI for all CSP-Region pairs
 		echo "Created testconf/test-config.yaml from template. Edit it before running."; \
 	fi
 	@cd cmd/test-cli/infra && $(GO) run main.go -config testconf/test-config.yaml
+
+test-rdbms: ## Run the managed RDBMS test CLI for target CSPs
+	@echo "Running managed RDBMS test CLI..."
+	@if [ ! -f cmd/test-cli/rdbms/testconf/test-config.yaml ]; then \
+		cp cmd/test-cli/rdbms/testconf/template-test-config.yaml cmd/test-cli/rdbms/testconf/test-config.yaml; \
+		echo "Created testconf/test-config.yaml from template. Edit it before running."; \
+	fi
+	@cd cmd/test-cli/rdbms && $(GO) run main.go -config testconf/test-config.yaml
 
 test-infra-with-nlb: ## Run the infra-with-nlb migration test CLI for all CSP-Region pairs
 	@echo "Running infra-with-nlb migration test CLI..."
@@ -197,6 +206,10 @@ prepare-volumes: ## Create bind-mount directories with correct ownership
 		deployments/docker-compose/data/cb-spider-container/log \
 		deployments/docker-compose/data/etcd/data \
 		deployments/docker-compose/data/openbao-data \
+		deployments/docker-compose/data/openbao-honeybee-data \
+		deployments/docker-compose/data/cm-honeybee-container/data \
+		deployments/docker-compose/data/cm-honeybee-container/db \
+		deployments/docker-compose/data/cm-damselfly-container/db \
 		deployments/docker-compose/data/mc-terrarium-container/.terrarium \
 		deployments/docker-compose/data/cm-beetle-container/db \
 		deployments/docker-compose/data/cm-beetle-container/log \
@@ -208,6 +221,10 @@ prepare-volumes: ## Create bind-mount directories with correct ownership
 		deployments/docker-compose/data/cb-spider-container/log \
 		deployments/docker-compose/data/etcd/data \
 		deployments/docker-compose/data/openbao-data \
+		deployments/docker-compose/data/openbao-honeybee-data \
+		deployments/docker-compose/data/cm-honeybee-container/data \
+		deployments/docker-compose/data/cm-honeybee-container/db \
+		deployments/docker-compose/data/cm-damselfly-container/db \
 		deployments/docker-compose/data/mc-terrarium-container/.terrarium \
 		deployments/docker-compose/data/cm-beetle-container/db \
 		deployments/docker-compose/data/cm-beetle-container/log
@@ -216,9 +233,16 @@ prepare-volumes: ## Create bind-mount directories with correct ownership
 		echo "Fixing ownership of mc-terrarium volume..."; \
 		sudo chown -R $$(id -u):$$(id -g) deployments/docker-compose/data/mc-terrarium-container/.terrarium; \
 	fi
+	@# Ensure deployments/docker-compose/.env exists
+	@if [ ! -f deployments/docker-compose/.env ]; then \
+		echo "Creating deployments/docker-compose/.env from .env.example..."; \
+		cp deployments/docker-compose/.env.example deployments/docker-compose/.env; \
+	fi
 	@echo "Prepared!"
 
 up: compose # Build and up services by docker compose
+
+up-no-cache: compose-no-cache ## Build all services with no-cache and up by docker compose
 
 dev-ui: ## Run UI dev server locally with hot-reload (run 'make up' first to start backends)
 	@echo "Stopping containerised UI if running..."
@@ -267,6 +291,19 @@ compose: prepare-volumes ## Build and up services by docker compose
 	@echo "Building and starting all services by docker compose..."
 	@cd deployments/docker-compose && DOCKER_BUILDKIT=1 docker compose up --build
 
+compose-no-cache: prepare-volumes ## Build all services with no-cache and up by docker compose
+	@echo "Starting OpenBao..."
+	@cd deployments/docker-compose && docker compose up -d openbao
+	@if [ ! -f deployments/docker-compose/.env ] || ! grep -q '^VAULT_TOKEN=.+' deployments/docker-compose/.env 2>/dev/null; then \
+		echo "VAULT_TOKEN not found — running first-time OpenBao initialization..."; \
+		bash deployments/docker-compose/openbao/openbao-init.sh; \
+	fi
+	@$(MAKE) unseal
+	@echo "Building all services with no-cache..."
+	@cd deployments/docker-compose && DOCKER_BUILDKIT=1 docker compose build --no-cache
+	@echo "Starting all services by docker compose..."
+	@cd deployments/docker-compose && docker compose up
+
 compose-down: ## Down services by docker compose
 	@echo "Removing services by docker compose..."
 	@cd deployments/docker-compose && docker compose down	
@@ -278,7 +315,7 @@ clean-db: compose-down ## Clean all database metadata and persistent data (exclu
 
 clean-all: compose-down clean-db ## Full reset including OpenBao (requires re-init)
 	@echo "Cleaning OpenBao configuration and secrets..."
-	@sudo rm -rf deployments/docker-compose/data/openbao-data/
+	@sudo rm -rf deployments/docker-compose/data/openbao-data/ deployments/docker-compose/data/openbao-honeybee-data/
 	@find deployments/docker-compose/openbao/secrets -type f ! -name ".gitkeep" -delete
 	@sed -i 's/^VAULT_TOKEN=.*/VAULT_TOKEN=/' deployments/docker-compose/.env 2>/dev/null || true
 	@echo "Cleaned! Run 'make up' to re-initialize."
