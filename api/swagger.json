@@ -3767,7 +3767,7 @@
         },
         "/naming/alignment": {
             "post": {
-                "description": "When a parent/primary resource is renamed (e.g., VNet), this API updates all\nchild/dependent references in the model (e.g., SecurityGroup.VNetId, SubGroup.VNetId).\n\n**Supported resourceType values** (cb-tumblebug convention):\n- `vNet` : Rename VNet → propagates to SecurityGroup.VNetId, SubGroup.VNetId\n- `subnet` : Rename Subnet → propagates to SubGroup.SubnetId\n- `sshKey` : Rename SSH Key → propagates to SubGroup.SshKeyId\n- `securityGroup` : Rename SecurityGroup → propagates to SubGroup.SecurityGroupIds\n- `infra` : Rename Infra (no child propagation)\n\nAfter propagation, names are validated for referential integrity.\nThe returned model uses **base names only** (NameSeed is applied at migration time via query param).\n\nSee also: [API Guide: Align Names](https://github.com/cloud-barista/cm-beetle/blob/main/docs/api-guide-align-names.md)\n",
+                "description": "When a parent/primary resource is renamed (e.g., VNet), this API updates all\nchild/dependent references in the model (e.g., SecurityGroup.VNetId, NodeGroup.VNetId).\n\n**Supported resourceType values** (cb-tumblebug convention):\n- `vNet` : Rename VNet → propagates to SecurityGroup.VNetId, NodeGroup.VNetId\n- `subnet` : Rename Subnet → propagates to NodeGroup.SubnetId\n- `sshKey` : Rename SSH Key → propagates to NodeGroup.SshKeyId\n- `securityGroup` : Rename SecurityGroup → propagates to NodeGroup.SecurityGroupIds\n- `infra` : Rename Infra (no child propagation)\n\nAfter propagation, names are validated for referential integrity.\nThe returned model uses **base names only** (NameSeed is applied at migration time via query param).\n\nSee also: [API Guide: Align Names](https://github.com/cloud-barista/cm-beetle/blob/main/docs/api-guide-align-names.md)\n",
                 "consumes": [
                     "application/json"
                 ],
@@ -4580,6 +4580,12 @@
                         "name": "connectionName",
                         "in": "query",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Database Engine filter (e.g., mysql, mariadb)",
+                        "name": "dbEngine",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -7494,6 +7500,14 @@
                 "description": {
                     "type": "string"
                 },
+                "failure": {
+                    "description": "Failure is the structured form of a creation failure: which class of CSP\nrejection it was, the zone that was attempted, and whether a retry can\nplausibly succeed. SystemMessage carries the same failure as one line of\ntext for display; this field is what retry logic reads.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/cloudmodel.ProvisioningFailure"
+                        }
+                    ]
+                },
                 "id": {
                     "description": "Id is unique identifier for the object",
                     "type": "string",
@@ -7765,6 +7779,82 @@
                 "PostCommandStatusSkipped",
                 "PostCommandStatusRunning"
             ]
+        },
+        "cloudmodel.ProvisioningFailure": {
+            "type": "object",
+            "properties": {
+                "attemptedZone": {
+                    "description": "AttemptedZone is the zone CB-Tumblebug actually requested, recorded from\nthe request itself. Authoritative: several CSPs (e.g. Alibaba) never name\nthe zone in their error text.",
+                    "type": "string",
+                    "example": "us-west-2a"
+                },
+                "class": {
+                    "description": "Class is one of the Failure* constants.",
+                    "type": "string",
+                    "example": "ZoneCapacity"
+                },
+                "cspErrorCode": {
+                    "description": "CspErrorCode is the provider's own error identifier when one could be\nextracted (e.g. \"InsufficientInstanceCapacity\", \"STOCKOUT\").",
+                    "type": "string",
+                    "example": "InsufficientInstanceCapacity"
+                },
+                "httpStatus": {
+                    "type": "integer",
+                    "example": 500
+                },
+                "message": {
+                    "description": "Message is a single-line human-readable summary.",
+                    "type": "string"
+                },
+                "occurredAt": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string",
+                    "example": "aws"
+                },
+                "rawMessage": {
+                    "description": "RawMessage is the original CSP text after secret redaction, noise\ntrimming and length capping. Kept so an unrecognized failure can still\nbe diagnosed by a human.",
+                    "type": "string"
+                },
+                "region": {
+                    "type": "string",
+                    "example": "us-west-2"
+                },
+                "reportedZone": {
+                    "description": "ReportedZone is the zone parsed out of the CSP message, when it names one.\nA mismatch with AttemptedZone means the VM was placed somewhere other than\nwhere CB-Tumblebug intended — worth surfacing rather than hiding.",
+                    "type": "string",
+                    "example": "us-west-2a"
+                },
+                "requestId": {
+                    "type": "string"
+                },
+                "retryHint": {
+                    "description": "RetryHint is one of the RetryHint* constants.",
+                    "type": "string",
+                    "example": "differentZone"
+                },
+                "retryable": {
+                    "description": "Retryable reports whether retrying can plausibly succeed without the\nuser changing something (quota increase, different spec).",
+                    "type": "boolean",
+                    "example": true
+                },
+                "source": {
+                    "type": "string",
+                    "example": "cb-spider:1024/spider/vm"
+                },
+                "suggestedZones": {
+                    "description": "SuggestedZones are alternatives the CSP itself offered. Only AWS provides\nthese today; empty for every other provider.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "us-west-2b",
+                        "us-west-2c"
+                    ]
+                }
+            }
         },
         "cloudmodel.RecommendedInfra": {
             "type": "object",
@@ -12502,6 +12592,101 @@
                 }
             }
         },
+        "onpremisemodel.GpuDetail": {
+            "type": "object",
+            "properties": {
+                "index": {
+                    "description": "Device index (e.g., 0, 1)",
+                    "type": "integer",
+                    "example": 0
+                },
+                "memoryFree": {
+                    "description": "Available/Free memory in GB",
+                    "type": "number",
+                    "example": 38
+                },
+                "memoryTotal": {
+                    "description": "Memory capacity in GB",
+                    "type": "number",
+                    "example": 40
+                },
+                "memoryUsed": {
+                    "description": "Used memory in GB",
+                    "type": "number",
+                    "example": 2
+                },
+                "model": {
+                    "description": "Specific model for this device",
+                    "type": "string",
+                    "example": "NVIDIA A100-PCIE-40GB"
+                },
+                "pciBusId": {
+                    "description": "PCIe Bus identifier (e.g., \"0000:01:00.0\")",
+                    "type": "string",
+                    "example": "0000:01:00.0"
+                },
+                "uuid": {
+                    "description": "Unique device UUID from driver (e.g., NVML GPU UUID)",
+                    "type": "string",
+                    "example": "GPU-12345678-abcd-ef01-2345-..."
+                }
+            }
+        },
+        "onpremisemodel.GpuProperty": {
+            "type": "object",
+            "required": [
+                "count"
+            ],
+            "properties": {
+                "architecture": {
+                    "description": "GPU Microarchitecture (e.g., \"Ampere\", \"Hopper\", \"Ada Lovelace\", \"Turing\", \"Volta\")",
+                    "type": "string",
+                    "example": "Ampere"
+                },
+                "count": {
+                    "description": "Number of physical GPU devices/chips",
+                    "type": "integer",
+                    "example": 1
+                },
+                "cudaVersion": {
+                    "description": "Supported/Installed CUDA version (e.g., \"12.2\", \"12.4\")",
+                    "type": "string",
+                    "example": "12.2"
+                },
+                "details": {
+                    "description": "Detailed information per individual physical GPU device",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/onpremisemodel.GpuDetail"
+                    }
+                },
+                "driverVersion": {
+                    "description": "Installed GPU driver version",
+                    "type": "string",
+                    "example": "535.129.03"
+                },
+                "model": {
+                    "description": "Primary GPU model name (e.g., \"Tesla T4\", \"NVIDIA A100-PCIE-40GB\", \"GeForce RTX 4090\")",
+                    "type": "string",
+                    "example": "NVIDIA A100-PCIE-40GB"
+                },
+                "totalMemoryGB": {
+                    "description": "Total VRAM across all devices in GB",
+                    "type": "number",
+                    "example": 40
+                },
+                "type": {
+                    "description": "Accelerator type: \"GPU\", \"NPU\", \"TPU\" (defaults to \"GPU\")",
+                    "type": "string",
+                    "example": "GPU"
+                },
+                "vendor": {
+                    "description": "GPU Vendor/Manufacturer (e.g., \"NVIDIA\", \"AMD\", \"Intel\")",
+                    "type": "string",
+                    "example": "NVIDIA"
+                }
+            }
+        },
         "onpremisemodel.K8sClusterProperty": {
             "type": "object",
             "required": [
@@ -12759,6 +12944,14 @@
                     "items": {
                         "$ref": "#/definitions/onpremisemodel.FirewallRuleProperty"
                     }
+                },
+                "gpu": {
+                    "description": "GPU accelerator hardware information (optional)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/onpremisemodel.GpuProperty"
+                        }
+                    ]
                 },
                 "hostname": {
                     "type": "string"

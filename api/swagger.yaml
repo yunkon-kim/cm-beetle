@@ -1242,6 +1242,14 @@ definitions:
         type: array
       description:
         type: string
+      failure:
+        allOf:
+        - $ref: '#/definitions/cloudmodel.ProvisioningFailure'
+        description: |-
+          Failure is the structured form of a creation failure: which class of CSP
+          rejection it was, the zone that was attempted, and whether a retry can
+          plausibly succeed. SystemMessage carries the same failure as one line of
+          text for display; this field is what retry logic reads.
       id:
         description: Id is unique identifier for the object
         example: aws-ap-southeast-1
@@ -1447,6 +1455,78 @@ definitions:
     - PostCommandStatusFailed
     - PostCommandStatusSkipped
     - PostCommandStatusRunning
+  cloudmodel.ProvisioningFailure:
+    properties:
+      attemptedZone:
+        description: |-
+          AttemptedZone is the zone CB-Tumblebug actually requested, recorded from
+          the request itself. Authoritative: several CSPs (e.g. Alibaba) never name
+          the zone in their error text.
+        example: us-west-2a
+        type: string
+      class:
+        description: Class is one of the Failure* constants.
+        example: ZoneCapacity
+        type: string
+      cspErrorCode:
+        description: |-
+          CspErrorCode is the provider's own error identifier when one could be
+          extracted (e.g. "InsufficientInstanceCapacity", "STOCKOUT").
+        example: InsufficientInstanceCapacity
+        type: string
+      httpStatus:
+        example: 500
+        type: integer
+      message:
+        description: Message is a single-line human-readable summary.
+        type: string
+      occurredAt:
+        type: string
+      provider:
+        example: aws
+        type: string
+      rawMessage:
+        description: |-
+          RawMessage is the original CSP text after secret redaction, noise
+          trimming and length capping. Kept so an unrecognized failure can still
+          be diagnosed by a human.
+        type: string
+      region:
+        example: us-west-2
+        type: string
+      reportedZone:
+        description: |-
+          ReportedZone is the zone parsed out of the CSP message, when it names one.
+          A mismatch with AttemptedZone means the VM was placed somewhere other than
+          where CB-Tumblebug intended — worth surfacing rather than hiding.
+        example: us-west-2a
+        type: string
+      requestId:
+        type: string
+      retryHint:
+        description: RetryHint is one of the RetryHint* constants.
+        example: differentZone
+        type: string
+      retryable:
+        description: |-
+          Retryable reports whether retrying can plausibly succeed without the
+          user changing something (quota increase, different spec).
+        example: true
+        type: boolean
+      source:
+        example: cb-spider:1024/spider/vm
+        type: string
+      suggestedZones:
+        description: |-
+          SuggestedZones are alternatives the CSP itself offered. Only AWS provides
+          these today; empty for every other provider.
+        example:
+        - us-west-2b
+        - us-west-2c
+        items:
+          type: string
+        type: array
+    type: object
   cloudmodel.RecommendedInfra:
     properties:
       description:
@@ -4889,6 +4969,81 @@ definitions:
         description: Unique identifier for the machine (e.g., UUID)
         type: string
     type: object
+  onpremisemodel.GpuDetail:
+    properties:
+      index:
+        description: Device index (e.g., 0, 1)
+        example: 0
+        type: integer
+      memoryFree:
+        description: Available/Free memory in GB
+        example: 38
+        type: number
+      memoryTotal:
+        description: Memory capacity in GB
+        example: 40
+        type: number
+      memoryUsed:
+        description: Used memory in GB
+        example: 2
+        type: number
+      model:
+        description: Specific model for this device
+        example: NVIDIA A100-PCIE-40GB
+        type: string
+      pciBusId:
+        description: PCIe Bus identifier (e.g., "0000:01:00.0")
+        example: "0000:01:00.0"
+        type: string
+      uuid:
+        description: Unique device UUID from driver (e.g., NVML GPU UUID)
+        example: GPU-12345678-abcd-ef01-2345-...
+        type: string
+    type: object
+  onpremisemodel.GpuProperty:
+    properties:
+      architecture:
+        description: GPU Microarchitecture (e.g., "Ampere", "Hopper", "Ada Lovelace",
+          "Turing", "Volta")
+        example: Ampere
+        type: string
+      count:
+        description: Number of physical GPU devices/chips
+        example: 1
+        type: integer
+      cudaVersion:
+        description: Supported/Installed CUDA version (e.g., "12.2", "12.4")
+        example: "12.2"
+        type: string
+      details:
+        description: Detailed information per individual physical GPU device
+        items:
+          $ref: '#/definitions/onpremisemodel.GpuDetail'
+        type: array
+      driverVersion:
+        description: Installed GPU driver version
+        example: 535.129.03
+        type: string
+      model:
+        description: Primary GPU model name (e.g., "Tesla T4", "NVIDIA A100-PCIE-40GB",
+          "GeForce RTX 4090")
+        example: NVIDIA A100-PCIE-40GB
+        type: string
+      totalMemoryGB:
+        description: Total VRAM across all devices in GB
+        example: 40
+        type: number
+      type:
+        description: 'Accelerator type: "GPU", "NPU", "TPU" (defaults to "GPU")'
+        example: GPU
+        type: string
+      vendor:
+        description: GPU Vendor/Manufacturer (e.g., "NVIDIA", "AMD", "Intel")
+        example: NVIDIA
+        type: string
+    required:
+    - count
+    type: object
   onpremisemodel.K8sClusterProperty:
     properties:
       cniPlugin:
@@ -5069,6 +5224,10 @@ definitions:
         items:
           $ref: '#/definitions/onpremisemodel.FirewallRuleProperty'
         type: array
+      gpu:
+        allOf:
+        - $ref: '#/definitions/onpremisemodel.GpuProperty'
+        description: GPU accelerator hardware information (optional)
       hostname:
         type: string
       interfaces:
@@ -10450,13 +10609,13 @@ paths:
       - application/json
       description: |
         When a parent/primary resource is renamed (e.g., VNet), this API updates all
-        child/dependent references in the model (e.g., SecurityGroup.VNetId, SubGroup.VNetId).
+        child/dependent references in the model (e.g., SecurityGroup.VNetId, NodeGroup.VNetId).
 
         **Supported resourceType values** (cb-tumblebug convention):
-        - `vNet` : Rename VNet → propagates to SecurityGroup.VNetId, SubGroup.VNetId
-        - `subnet` : Rename Subnet → propagates to SubGroup.SubnetId
-        - `sshKey` : Rename SSH Key → propagates to SubGroup.SshKeyId
-        - `securityGroup` : Rename SecurityGroup → propagates to SubGroup.SecurityGroupIds
+        - `vNet` : Rename VNet → propagates to SecurityGroup.VNetId, NodeGroup.VNetId
+        - `subnet` : Rename Subnet → propagates to NodeGroup.SubnetId
+        - `sshKey` : Rename SSH Key → propagates to NodeGroup.SshKeyId
+        - `securityGroup` : Rename SecurityGroup → propagates to NodeGroup.SecurityGroupIds
         - `infra` : Rename Infra (no child propagation)
 
         After propagation, names are validated for referential integrity.
@@ -11133,6 +11292,10 @@ paths:
         in: query
         name: connectionName
         required: true
+        type: string
+      - description: Database Engine filter (e.g., mysql, mariadb)
+        in: query
+        name: dbEngine
         type: string
       produces:
       - application/json

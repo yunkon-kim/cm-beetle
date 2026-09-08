@@ -553,6 +553,9 @@ func runSingleRDBMSTest(
 	// 2.2 GET /recommendation/middleware/rdbms/capability
 	capStep := TestResults{TestName: "Beetle GET RDBMS Capability", StartTime: time.Now()}
 	capURL := fmt.Sprintf("%s/recommendation/middleware/rdbms/capability?connectionName=%s", cfg.Beetle.Endpoint, tc.ConnectionName)
+	if tc.DBEngine != "" {
+		capURL += fmt.Sprintf("&dbEngine=%s", tc.DBEngine)
+	}
 	capResp, capErr := bClient.R().Get(capURL)
 	capStep.EndTime = time.Now()
 	capStep.Duration = capStep.EndTime.Sub(capStep.StartTime)
@@ -578,6 +581,14 @@ func runSingleRDBMSTest(
 			Region: tc.Region,
 		},
 		SourceRDBMSInstances: baseReq.SourceRDBMSInstances,
+	}
+	if tc.DBEngine != "" {
+		for i := range recReqBody.SourceRDBMSInstances {
+			recReqBody.SourceRDBMSInstances[i].Engine = tc.DBEngine
+			if tc.DBEngineVersion != "" {
+				recReqBody.SourceRDBMSInstances[i].EngineVersion = tc.DBEngineVersion
+			}
+		}
 	}
 	recURL := fmt.Sprintf("%s/recommendation/middleware/rdbms", cfg.Beetle.Endpoint)
 	recResp, recErr := bClient.R().SetBody(recReqBody).Post(recURL)
@@ -607,26 +618,55 @@ func runSingleRDBMSTest(
 
 	// Bind created infrastructure IDs & test parameters into recommendation
 	if len(recommendedResult.TargetRDBMSInstances) > 0 {
+		baseRDBMSName := resolveBaseRDBMSName(tc, baseReq.NameSeed)
 		for i := range recommendedResult.TargetRDBMSInstances {
 			inst := &recommendedResult.TargetRDBMSInstances[i]
-			inst.RDBMSName = tc.RdbmsId
+			inst.RDBMSName = baseRDBMSName
 			inst.VNetId = vNetId
 			inst.SubnetIds = subnetIds
 			inst.SecurityGroupIds = sgIds
+			// DBEngine: use recommendation if present, fallback to test-config
+			if inst.DBEngine == "" && tc.DBEngine != "" {
+				inst.DBEngine = tc.DBEngine
+			} else if inst.DBEngine != "" && tc.DBEngine != "" {
+				log.Info().Msgf("[%s] Using recommended DBEngine '%s' (test-config reference: '%s')", tc.Csp, inst.DBEngine, tc.DBEngine)
+			}
+
+			// DBEngineVersion: use recommendation if present, fallback to test-config
+			if inst.DBEngineVersion == "" && tc.DBEngineVersion != "" {
+				inst.DBEngineVersion = tc.DBEngineVersion
+			} else if inst.DBEngineVersion != "" && tc.DBEngineVersion != "" {
+				log.Info().Msgf("[%s] Using recommended DBEngineVersion '%s' (test-config reference: '%s')", tc.Csp, inst.DBEngineVersion, tc.DBEngineVersion)
+			}
+
+			// Admin credentials
 			if tc.AdminUserName != "" {
 				inst.AdminUserName = tc.AdminUserName
 			}
 			if tc.AdminUserPassword != "" {
 				inst.AdminUserPassword = tc.AdminUserPassword
 			}
-			if tc.DBInstanceSpec != "" {
+
+			// DBInstanceSpec: use dynamically recommended spec based on vCPU/memory/disk; fallback to test-config
+			if inst.DBInstanceSpec == "" && tc.DBInstanceSpec != "" {
+				log.Info().Msgf("[%s] DBInstanceSpec not provided by recommendation; using fallback from test-config: %s", tc.Csp, tc.DBInstanceSpec)
 				inst.DBInstanceSpec = tc.DBInstanceSpec
+			} else if inst.DBInstanceSpec != "" && tc.DBInstanceSpec != "" {
+				log.Info().Msgf("[%s] Using dynamically recommended DBInstanceSpec '%s' based on vCPU/memory/disk (test-config reference: '%s')", tc.Csp, inst.DBInstanceSpec, tc.DBInstanceSpec)
 			}
-			if tc.StorageType != "" {
+
+			// StorageType: use recommendation if present, fallback to test-config
+			if inst.StorageType == "" && tc.StorageType != "" {
 				inst.StorageType = tc.StorageType
+			} else if inst.StorageType != "" && tc.StorageType != "" {
+				log.Info().Msgf("[%s] Using recommended StorageType '%s' (test-config reference: '%s')", tc.Csp, inst.StorageType, tc.StorageType)
 			}
-			if tc.StorageSize > 0 {
+
+			// StorageSize: use recommendation if present, fallback to test-config
+			if inst.StorageSize <= 0 && tc.StorageSize > 0 {
 				inst.StorageSize = tc.StorageSize
+			} else if inst.StorageSize > 0 && tc.StorageSize > 0 {
+				log.Info().Msgf("[%s] Using recommended StorageSize %dGB (test-config reference: %dGB)", tc.Csp, inst.StorageSize, tc.StorageSize)
 			}
 			inst.PublicAccess = tc.PublicAccess
 			if tc.PublicAccess && tc.NHNDBSGToAllowAllInbound {
@@ -692,23 +732,45 @@ func runSingleRDBMSTest(
 	// ------------------------------------------------------------------------
 	// 3.1 POST /migration/middleware/ns/{nsId}/rdbms
 	migStep := TestResults{TestName: "Beetle POST Migrate RDBMS (Provisioning)", StartTime: time.Now()}
+	if !recStep.Success {
+		migStep.Skipped = true
+		migStep.ErrorMessage = fmt.Sprintf("Skipped because Beetle Recommend RDBMS failed: %s", recStep.Error)
+		report.TestResults = append(report.TestResults, migStep)
+		return report
+	}
+	if !valStep.Success {
+		migStep.Skipped = true
+		migStep.ErrorMessage = fmt.Sprintf("Skipped because Beetle Validate RDBMS Recommendation failed: %s", valStep.Error)
+		report.TestResults = append(report.TestResults, migStep)
+		return report
+	}
+
 	if len(recommendedResult.TargetRDBMSInstances) > 0 && vNetId != "" {
-		candidateRDBMSId = tc.RdbmsId
-		if baseReq.NameSeed != "" {
-			candidateRDBMSId = common.ComposeName(tc.RdbmsId, baseReq.NameSeed)
-		}
-		// Pre-clean previous leftover metadata only if it exists
-		checkURL := fmt.Sprintf("%s/tumblebug/ns/%s/resources/rdbms/%s", auth.TumblebugEndpoint, cfg.Beetle.NamespaceID, candidateRDBMSId)
-		if checkResp, checkErr := tbClient.R().Get(checkURL); checkErr == nil && checkResp.StatusCode() == 200 {
-			preCleanURL := fmt.Sprintf("%s/tumblebug/ns/%s/resources/rdbms/%s?option=force", auth.TumblebugEndpoint, cfg.Beetle.NamespaceID, candidateRDBMSId)
-			_, _ = tbClient.R().Delete(preCleanURL)
+		baseRDBMSName := resolveBaseRDBMSName(tc, baseReq.NameSeed)
+		candidateRDBMSId = common.ComposeName(baseRDBMSName, baseReq.NameSeed)
+		// Pre-clean previous leftover metadata only if it exists in Tumblebug
+		listIDsURL := fmt.Sprintf("%s/tumblebug/ns/%s/resources/rdbms?option=id", auth.TumblebugEndpoint, cfg.Beetle.NamespaceID)
+		if listResp, listErr := tbClient.R().Get(listIDsURL); listErr == nil && listResp.StatusCode() == 200 {
+			var idListResp struct {
+				IdList []string `json:"idList"`
+			}
+			if json.Unmarshal(listResp.Body(), &idListResp) == nil {
+				for _, existingId := range idListResp.IdList {
+					if existingId == candidateRDBMSId {
+						log.Info().Msgf("[%s] Cleaning up leftover RDBMS instance '%s' before migration...", tc.Csp, candidateRDBMSId)
+						preCleanURL := fmt.Sprintf("%s/tumblebug/ns/%s/resources/rdbms/%s?option=force", auth.TumblebugEndpoint, cfg.Beetle.NamespaceID, candidateRDBMSId)
+						_, _ = tbClient.R().Delete(preCleanURL)
+						break
+					}
+				}
+			}
 		}
 
 		migReq := controller.MigrateRDBMSRequest{
 			RecommendedRDBMS: recommendedResult,
 		}
 		migURL := fmt.Sprintf("%s/migration/middleware/ns/%s/rdbms?nameSeed=%s", cfg.Beetle.Endpoint, cfg.Beetle.NamespaceID, baseReq.NameSeed)
-		log.Info().Msgf("[%s] Migrating/Provisioning RDBMS instance '%s' (this may take several minutes)...", tc.Csp, tc.RdbmsId)
+		log.Info().Msgf("[%s] Migrating/Provisioning RDBMS instance '%s' (this may take several minutes)...", tc.Csp, candidateRDBMSId)
 
 		migResp, migErr := bClient.R().SetBody(migReq).Post(migURL)
 		migStep.EndTime = time.Now()
@@ -730,10 +792,7 @@ func runSingleRDBMSTest(
 			report.MigrationResponse = mResp
 
 			// Determine actual created instance ID (considering NameSeed)
-			createdRDBMSId = tc.RdbmsId
-			if baseReq.NameSeed != "" {
-				createdRDBMSId = common.ComposeName(tc.RdbmsId, baseReq.NameSeed)
-			}
+			createdRDBMSId = common.ComposeName(baseRDBMSName, baseReq.NameSeed)
 			log.Info().Msgf("[%s] Beetle Migrate RDBMS OK: %s provisioned", tc.Csp, createdRDBMSId)
 		}
 	} else {
@@ -1083,13 +1142,13 @@ func resolveAndReviewSpecAndImage(
 	tbClient *resty.Client,
 	step *TestResults,
 ) {
-	providerName := tc.Csp
-	regionName := tc.Region
+	providerName := strings.ToLower(tc.Csp)
+	regionName := strings.ToLower(tc.Region)
 	if providerName == "" || regionName == "" {
 		parts := strings.Split(tc.ConnectionName, "-")
 		if len(parts) >= 2 {
-			providerName = parts[0]
-			regionName = strings.Join(parts[1:], "-")
+			providerName = strings.ToLower(parts[0])
+			regionName = strings.ToLower(strings.Join(parts[1:], "-"))
 		}
 	}
 
@@ -1374,6 +1433,24 @@ func runInternalVmDataIOTest(
 // Helper Functions & Reporting
 // ============================================================================
 
+// resolveBaseRDBMSName resolves the base RDBMS name without duplicate seed prefixes.
+// In parallel test runs, it guarantees that every CSP case has a unique name (rdbms-<csp>)
+// so that when late-binding nameSeed is applied, the provisioned instances do not collide
+// in the shared namespace (e.g. test-rdbms-openstack, test-rdbms-aws).
+func resolveBaseRDBMSName(tc TestCase, seed string) string {
+	baseName := tc.RdbmsId
+	if baseName == "" {
+		if tc.DBEngine != "" && !strings.EqualFold(tc.DBEngine, "mysql") {
+			baseName = fmt.Sprintf("rdbms-%s-%s", strings.ToLower(tc.DBEngine), strings.ToLower(tc.Csp))
+		} else {
+			baseName = fmt.Sprintf("rdbms-%s", strings.ToLower(tc.Csp))
+		}
+	} else if seed != "" && strings.HasPrefix(baseName, seed+"-") {
+		baseName = strings.TrimPrefix(baseName, seed+"-")
+	}
+	return baseName
+}
+
 func createRestClient(user, pass string) *resty.Client {
 	client := resty.New()
 	client.SetTimeout(35 * time.Minute)
@@ -1462,14 +1539,164 @@ func calculateSummary(results []TestResults) TestResults {
 	}
 }
 
-func generateSummaryReport(outputDir string, reports []*RDBMSTestReport, totalDuration time.Duration) {
-	summaryPath := filepath.Join(outputDir, "summary.md")
-	var sb strings.Builder
+// parseExistingSummary parses an existing summary.md file to extract historical results for merging.
+func parseExistingSummary(summaryPath string) ([]string, map[string]map[string]string) {
+	content, err := os.ReadFile(summaryPath)
+	if err != nil {
+		return nil, nil
+	}
 
-	sb.WriteString("# CM-Beetle Managed RDBMS Test Run Summary\n\n")
+	lines := strings.Split(string(content), "\n")
+	var csps []string
+	tableData := make(map[string]map[string]string)
+
+	inTable := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "| Test Items / Phase |") {
+			inTable = true
+			cols := strings.Split(trimmed, "|")
+			for i := 2; i < len(cols); i++ {
+				colName := strings.TrimSpace(cols[i])
+				colName = strings.Trim(colName, "*")
+				colName = strings.ToUpper(strings.TrimSpace(colName))
+				if colName != "" {
+					csps = append(csps, colName)
+				}
+			}
+			continue
+		}
+		if inTable {
+			if !strings.HasPrefix(trimmed, "|") || strings.HasPrefix(trimmed, "---") {
+				if strings.TrimSpace(trimmed) == "" || strings.HasPrefix(trimmed, "---") {
+					break
+				}
+				continue
+			}
+			if strings.Contains(trimmed, ":---") {
+				continue
+			}
+			cols := strings.Split(trimmed, "|")
+			if len(cols) < 3 {
+				continue
+			}
+			label := strings.TrimSpace(cols[1])
+			label = strings.Trim(label, "*")
+			label = strings.TrimSpace(label)
+			if label == "" {
+				continue
+			}
+
+			if tableData[label] == nil {
+				tableData[label] = make(map[string]string)
+			}
+			for i, csp := range csps {
+				colIdx := i + 2
+				if colIdx < len(cols) {
+					tableData[label][csp] = strings.TrimSpace(cols[colIdx])
+				}
+			}
+		}
+	}
+
+	return csps, tableData
+}
+
+func hasCSPData(table map[string]map[string]string, csp string) bool {
+	for _, row := range table {
+		if val, ok := row[csp]; ok && val != "" && val != "—" {
+			return true
+		}
+	}
+	return false
+}
+
+func generateSummaryReport(outputDir string, reports []*RDBMSTestReport, totalDuration time.Duration) {
+	validReports := make([]*RDBMSTestReport, 0, len(reports))
+	for _, r := range reports {
+		if r != nil {
+			validReports = append(validReports, r)
+		}
+	}
+	if len(validReports) == 0 {
+		return
+	}
+
+	mysqlReports := make([]*RDBMSTestReport, 0)
+	mariadbReports := make([]*RDBMSTestReport, 0)
+
+	for _, r := range validReports {
+		engine := "mysql"
+		if len(r.SourceRDBMS.SourceRDBMSInstances) > 0 && r.SourceRDBMS.SourceRDBMSInstances[0].Engine != "" {
+			engine = strings.ToLower(r.SourceRDBMS.SourceRDBMSInstances[0].Engine)
+		}
+		if strings.EqualFold(engine, "mariadb") || strings.Contains(strings.ToLower(r.DisplayName), "mariadb") {
+			mariadbReports = append(mariadbReports, r)
+		} else {
+			mysqlReports = append(mysqlReports, r)
+		}
+	}
+
+	if len(mysqlReports) > 0 {
+		generateSummaryReportForEngine(outputDir, "MySQL", "mysql-summary.md", []string{"AWS", "AZURE", "GCP", "ALIBABA", "TENCENT", "IBM", "NCP", "NHN", "OPENSTACK"}, mysqlReports, totalDuration)
+	}
+	if len(mariadbReports) > 0 {
+		generateSummaryReportForEngine(outputDir, "MariaDB", "mariadb-summary.md", []string{"AWS", "ALIBABA", "NHN", "OPENSTACK"}, mariadbReports, totalDuration)
+	}
+}
+
+func generateSummaryReportForEngine(outputDir string, engineTitle, summaryFileName string, canonicalOrder []string, reports []*RDBMSTestReport, totalDuration time.Duration) {
+	reportByCSP := make(map[string]*RDBMSTestReport)
+	for _, r := range reports {
+		reportByCSP[strings.ToUpper(r.CSP)] = r
+	}
+
+	summaryPath := filepath.Join(outputDir, summaryFileName)
+
+	if len(reports) == 0 {
+		sb := fmt.Sprintf("# CM-Beetle Managed RDBMS (%s) Test Run Summary\n\nNo test results available.\n", engineTitle)
+		_ = os.WriteFile(summaryPath, []byte(sb), 0644)
+		return
+	}
+
+	// Parse existing summary if available to merge historical CSP results
+	existingCSPs, existingTable := parseExistingSummary(summaryPath)
+	if engineTitle == "MySQL" && len(existingCSPs) == 0 {
+		legacyPath := filepath.Join(outputDir, "summary.md")
+		if _, err := os.Stat(legacyPath); err == nil {
+			existingCSPs, existingTable = parseExistingSummary(legacyPath)
+		}
+	}
+
+	// Build unified list of CSPs to display (preserving canonical order or existing + newly tested)
+	finalCSPs := make([]string, 0)
+	cspSeen := make(map[string]bool)
+
+	for _, csp := range canonicalOrder {
+		if _, inReports := reportByCSP[csp]; inReports || (existingTable != nil && hasCSPData(existingTable, csp)) {
+			finalCSPs = append(finalCSPs, csp)
+			cspSeen[csp] = true
+		}
+	}
+	for _, csp := range existingCSPs {
+		if !cspSeen[csp] {
+			finalCSPs = append(finalCSPs, csp)
+			cspSeen[csp] = true
+		}
+	}
+	for _, r := range reports {
+		cUpper := strings.ToUpper(r.CSP)
+		if !cspSeen[cUpper] {
+			finalCSPs = append(finalCSPs, cUpper)
+			cspSeen[cUpper] = true
+		}
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("# CM-Beetle Managed RDBMS (%s) Test Run Summary\n\n", engineTitle))
 	sb.WriteString(fmt.Sprintf("- **Test Date:** %s\n", time.Now().Format("2006-01-02 15:04:05")))
 	sb.WriteString(fmt.Sprintf("- **Total Duration:** %s\n", totalDuration.Round(time.Second)))
-	sb.WriteString(fmt.Sprintf("- **Total Test Cases:** %d\n\n", len(reports)))
+	sb.WriteString(fmt.Sprintf("- **Total Test Cases:** %d\n\n", len(finalCSPs)))
 
 	sb.WriteString("## Scenario & Tested APIs\n\n")
 	sb.WriteString("1. **Pre-flight Spec & Image Review**: `POST /tumblebug/specImagePairReview`\n")
@@ -1489,42 +1716,34 @@ func generateSummaryReport(outputDir string, reports []*RDBMSTestReport, totalDu
 
 	sb.WriteString("## Test Matrix Results\n\n")
 
-	// Filter valid reports
-	validReports := make([]*RDBMSTestReport, 0, len(reports))
-	for _, r := range reports {
-		if r != nil {
-			validReports = append(validReports, r)
-		}
-	}
-
-	if len(validReports) == 0 {
-		sb.WriteString("No test results available.\n")
-		_ = os.WriteFile(summaryPath, []byte(sb.String()), 0644)
-		return
-	}
-
-	// 1. Header Row (Test Item | CSP1 | CSP2 | ...)
+	// 1. Header Row
 	sb.WriteString("| Test Items / Phase |")
-	for _, r := range validReports {
-		sb.WriteString(fmt.Sprintf(" **%s** |", strings.ToUpper(r.CSP)))
+	for _, csp := range finalCSPs {
+		sb.WriteString(fmt.Sprintf(" **%s** |", csp))
 	}
 	sb.WriteString("\n")
 
 	// 2. Separator Row
 	sb.WriteString("| :--- |")
-	for range validReports {
+	for range finalCSPs {
 		sb.WriteString(" :---: |")
 	}
 	sb.WriteString("\n")
 
-	// 3. Metadata Rows - Region only
+	// 3. Region Row
 	sb.WriteString("| **Region** |")
-	for _, r := range validReports {
-		sb.WriteString(fmt.Sprintf(" `%s` |", r.Region))
+	for _, csp := range finalCSPs {
+		if r, ok := reportByCSP[csp]; ok {
+			sb.WriteString(fmt.Sprintf(" `%s` |", r.Region))
+		} else if val, ok := existingTable["Region"][csp]; ok {
+			sb.WriteString(fmt.Sprintf(" %s |", val))
+		} else {
+			sb.WriteString(" — |")
+		}
 	}
 	sb.WriteString("\n")
 
-	// 4. Test Step Rows
+	// 4. Step Rows
 	type stepRowDef struct {
 		label    string
 		stepName string
@@ -1552,16 +1771,22 @@ func generateSummaryReport(outputDir string, reports []*RDBMSTestReport, totalDu
 
 	for _, def := range stepDefs {
 		sb.WriteString(fmt.Sprintf("| **%s** |", def.label))
-		for _, r := range validReports {
+		for _, csp := range finalCSPs {
 			var icon string
-			if def.isDirect {
-				raw := r.ExternalDataIOTest
-				if def.ioField != "ext" {
-					raw = r.InternalDataIOTest
+			if r, ok := reportByCSP[csp]; ok {
+				if def.isDirect {
+					raw := r.ExternalDataIOTest
+					if def.ioField != "ext" {
+						raw = r.InternalDataIOTest
+					}
+					icon = formatDataIOEmoji(raw)
+				} else {
+					icon = getStepIcon(r.TestResults, def.stepName)
 				}
-				icon = formatDataIOEmoji(raw)
+			} else if val, ok := existingTable[def.label][csp]; ok {
+				icon = val
 			} else {
-				icon = getStepIcon(r.TestResults, def.stepName)
+				icon = "—"
 			}
 			sb.WriteString(fmt.Sprintf(" %s |", icon))
 		}
@@ -1570,12 +1795,18 @@ func generateSummaryReport(outputDir string, reports []*RDBMSTestReport, totalDu
 
 	// 5. Overall Result Row
 	sb.WriteString("| **Overall Result** |")
-	for _, r := range validReports {
-		resEmoji := "**✅**"
-		if !r.Summary.Success {
-			resEmoji = "**❌**"
+	for _, csp := range finalCSPs {
+		if r, ok := reportByCSP[csp]; ok {
+			resEmoji := "**✅**"
+			if !r.Summary.Success {
+				resEmoji = "**❌**"
+			}
+			sb.WriteString(fmt.Sprintf(" %s |", resEmoji))
+		} else if val, ok := existingTable["Overall Result"][csp]; ok {
+			sb.WriteString(fmt.Sprintf(" %s |", val))
+		} else {
+			sb.WriteString(" — |")
 		}
-		sb.WriteString(fmt.Sprintf(" %s |", resEmoji))
 	}
 	sb.WriteString("\n")
 
@@ -1584,6 +1815,7 @@ func generateSummaryReport(outputDir string, reports []*RDBMSTestReport, totalDu
 	_ = os.WriteFile(summaryPath, []byte(finalSummary), 0644)
 	fmt.Println("\n" + finalSummary)
 }
+
 
 func formatDataIOEmoji(raw string) string {
 	rawLower := strings.ToLower(strings.TrimSpace(raw))
@@ -1615,10 +1847,22 @@ func getStepIcon(results []TestResults, stepName string) string {
 }
 
 func generateDetailedReport(outputDir string, r *RDBMSTestReport) {
-	filePath := filepath.Join(outputDir, fmt.Sprintf("%s.md", r.CSP))
+	engine := "mysql"
+	if len(r.SourceRDBMS.SourceRDBMSInstances) > 0 && r.SourceRDBMS.SourceRDBMSInstances[0].Engine != "" {
+		engine = strings.ToLower(r.SourceRDBMS.SourceRDBMSInstances[0].Engine)
+	}
+	isMariaDB := strings.EqualFold(engine, "mariadb") || strings.Contains(strings.ToLower(r.DisplayName), "mariadb")
+
+	fileName := fmt.Sprintf("mysql-%s.md", r.CSP)
+	engineName := "MySQL"
+	if isMariaDB {
+		fileName = fmt.Sprintf("mariadb-%s.md", r.CSP)
+		engineName = "MariaDB"
+	}
+	filePath := filepath.Join(outputDir, fileName)
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("# Managed RDBMS Test Report: %s (%s)\n\n", strings.ToUpper(r.CSP), r.Region))
+	sb.WriteString(fmt.Sprintf("# Managed RDBMS (%s) Test Report: %s (%s)\n\n", engineName, strings.ToUpper(r.CSP), r.Region))
 	sb.WriteString(fmt.Sprintf("- **Test Case:** %s\n", r.DisplayName))
 	sb.WriteString(fmt.Sprintf("- **Date & Time:** %s %s\n", r.TestDate, r.TestTime))
 	sb.WriteString(fmt.Sprintf("- **Namespace:** `%s`\n", r.NamespaceID))

@@ -4,11 +4,12 @@ This document covers support for managed middleware resources (NLB, DBMS / Manag
 
 ## Overview
 
-| Resource       | AWS | Azure | GCP | Alibaba | Tencent | IBM | (OpenStack) | NCP | NHN | (KT) |
-| -------------- | :-: | :---: | :-: | :-----: | :-----: | :-: | :---------: | :-: | :-: | :--: |
-| Object Storage | ✅  |  ✅   | ✅  |   ✅    |   ✅    | ✅  |     ✅      | ✅  |  ✅ |  ✅  |
-| NLB            | ✅  |  🚧   | 🚧  |   🚧    |   📅    | 🚧  |     📅      | 🚧  |  📅 |  📅  |
-| Managed RDBMS  | ✅  |  ✅   | ✅  |   ✅    |   ✅    | ✅  |     📅      | ✅  |  ✅ |  📅  |
+| Resource                | AWS | Azure | GCP | Alibaba | Tencent | IBM | OpenStack | NCP | NHN | KT  |
+| ----------------------- | :-: | :---: | :-: | :-----: | :-----: | :-: | :-------: | :-: | :-: | :-: |
+| Object Storage          | ✅  |  ✅   | ✅  |   ✅    |   ✅    | ✅  |    ✅     | ✅  | ✅  | ✅  |
+| NLB                     | ✅  |  🚧   | 🚧  |   🚧    |   📅    | 🚧  |    📅     | 🚧  | 📅  | 📅  |
+| Managed RDBMS (MySQL)   | ✅  |  ✅   | ✅  |   ✅    |   ✅    | ✅  |    ✅     | ✅  | ✅  | ❌  |
+| Managed RDBMS (MariaDB) | ✅  |  ❌   | ❌  |   ✅    |   ❌    | ❌  |    ✅     | ❌  | ✅  | ❌  |
 
 ## Object Storage
 
@@ -27,14 +28,30 @@ See also: [Object Storage Feature Guide](middleware-object-storage.md)
 
 See also: [Managed RDBMS Feature Guide](middleware-rdbms.md)
 
-| Feature | AWS | Azure | GCP | Alibaba | Tencent | IBM | NCP | NHN |
-| :--- | :-: | :-: | :-: | :-----: | :-----: | :-: | :-: | :-: |
-| Support & Capability Discovery | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Recommendation & Validation | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Migration & Provisioning | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Logical Database CRUD | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Internal Data I/O | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| External Data I/O | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | N/A (Private only) | ✅ |
+### MySQL
+
+| Feature                        | AWS | Azure | GCP | Alibaba | Tencent | IBM | OpenStack |        NCP         | NHN | KT  |
+| :----------------------------- | :-: | :---: | :-: | :-----: | :-----: | :-: | :-------: | :----------------: | :-: | :-: |
+| Support & Capability Discovery | ✅  |  ✅   | ✅  |   ✅    |   ✅    | ✅  |    ✅     |         ✅         | ✅  | ❌  |
+| Recommendation & Validation    | ✅  |  ✅   | ✅  |   ✅    |   ✅    | ✅  |    ✅     |         ✅         | ✅  | ❌  |
+| Migration & Provisioning       | ✅  |  ✅   | ✅  |   ✅    |   ✅    | ✅  |    ✅     |         ✅         | ✅  | ❌  |
+| Logical Database CRUD          | ✅  |  ✅   | ✅  |   ✅    |   ✅    | ✅  |    ✅     |         ✅         | ✅  | ❌  |
+| Internal Data I/O              | ✅  |  ✅   | ✅  |   ✅    |   ✅    | ✅  |    ✅     |         ✅         | ✅  | ❌  |
+| External Data I/O              | ✅  |  ✅   | ✅  |   ✅    |   ✅    | ✅  |    ✅     | N/A (Private only) | ✅  | ❌  |
+
+### MariaDB
+
+| Feature                        | AWS | Azure | GCP | Alibaba | Tencent | IBM | OpenStack | NCP | NHN | KT  |
+| :----------------------------- | :-: | :---: | :-: | :-----: | :-----: | :-: | :-------: | :-: | :-: | :-: |
+| Support & Capability Discovery | ✅  |  ❌   | ❌  |   ✅    |   ❌    | ❌  |    ✅     | ❌  | ✅  | ❌  |
+| Recommendation & Validation    | ✅  |  ❌   | ❌  |   ✅    |   ❌    | ❌  |    ✅     | ❌  | ✅  | ❌  |
+| Migration & Provisioning       | ✅  |  ❌   | ❌  |   ✅    |   ❌    | ❌  |    ✅     | ❌  | ✅  | ❌  |
+| Logical Database CRUD          | ✅  |  ❌   | ❌  |   ✅    |   ❌    | ❌  |    ✅     | ❌  | ✅  | ❌  |
+| Internal Data I/O              | ✅  |  ❌   | ❌  |   ✅    |   ❌    | ❌  |    ✅     | ❌  | ✅  | ❌  |
+| External Data I/O              | ✅  |  ❌   | ❌  |   ✅    |   ❌    | ❌  |    ✅     | ❌  | ✅  | ❌  |
+
+> - **Supported CSPs**: MariaDB managed services are natively supported by **AWS** (RDS), **Alibaba** (ApsaraDB), **NHN** (RDS), and **OpenStack** (Trove v10.4).
+> - **Automatic Compatibility Fallback**: For other CSPs (Azure, GCP, Tencent, IBM, NCP, KT) that do not offer native MariaDB services, CM-Beetle automatically recommends MySQL as a binary-compatible fallback with actionable warnings.
 
 ## NLB (Preview)
 
@@ -74,4 +91,4 @@ See also: [NLB Feature Guide](middleware-nlb.md)
 ## Roadmap
 
 - 🚧 **In progress**: NLB — Azure, GCP, Alibaba, IBM, NCP
-- 📅 **Planned**: NLB — Tencent, OpenStack, NHN, KT · Managed RDBMS — OpenStack, KT
+- 📅 **Planned**: NLB — Tencent, OpenStack, NHN, KT

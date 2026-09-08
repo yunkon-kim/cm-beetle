@@ -45,7 +45,8 @@ The tables below show recommendation and migration support by target CSP and res
 | K8s Node Image  | 🚧  |  📅   | 📅  |   📅    |   📅    | 📅  |    ❌     |  —  |  —  | ❌  |
 | Object Storage  | ✅  |  ✅   | ✅  |   ✅    |   ✅    | ✅  |    ✅     | ✅  | ✅  | ✅  |
 | NLB             | ✅  |  ✅   | ✅  |   ✅    |   📅    | ✅  |    📅     | ✅  | 📅  | 📅  |
-| DBMS            | 📅  |  📅   | 📅  |   📅    |   📅    | 📅  |    📅     | 📅  | 📅  | 📅  |
+| RDBMS (MySQL)   | ✅  |  ✅   | ✅  |   ✅    |   ✅    | ✅  |    ✅     | ✅  | ✅  | ❌  |
+| RDBMS (MariaDB) | ✅  |  ❌   | ❌  |   ✅    |   ❌    | ❌  |    ✅     | ❌  | ✅  | ❌  |
 
 **Data Migration · Incubating**
 

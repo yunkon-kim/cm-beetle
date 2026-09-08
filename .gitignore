@@ -68,6 +68,7 @@ cmd/test-cli/rdbms/rdbms
 cmd/test-cli/rdbms/testconf/auth.json
 cmd/test-cli/rdbms/testconf/auth-config.json
 cmd/test-cli/rdbms/testconf/test-config.yaml
+cmd/test-cli/rdbms/testconf/test-config-*.yaml
 pkg/testclient/scripts/sequentialFullTest/executionStatus*
 pkg/testclient/scripts/sequentialFullTest/ansibleAutoConf/*
 pkg/testclient/scripts/credentials*
