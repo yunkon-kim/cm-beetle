@@ -31,7 +31,7 @@ func TestMigrateRDBMS_Validation(t *testing.T) {
 				DBInstanceSpec:     "db.t3.medium",
 				StorageType:        "gp3",
 				StorageSize:        100,
-				AdminUserName:      "cbuser",
+				AdminUserName:      "dbadmin",
 				Databases: []rdbmsmodel.TargetDatabase{
 					{DatabaseName: "sampledb"},
 				},

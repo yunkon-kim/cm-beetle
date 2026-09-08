@@ -66,7 +66,7 @@ func CreateRDBMS(nsId string, req rdbmsmodel.RecommendedRDBMS, seed string) erro
 
 		adminUser := target.AdminUserName
 		if adminUser == "" {
-			adminUser = "cbuser"
+			adminUser = "dbadmin"
 		}
 		adminPass := target.AdminUserPassword
 		if adminPass == "" {

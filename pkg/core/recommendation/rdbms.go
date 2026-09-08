@@ -100,6 +100,62 @@ func ValidateRDBMS(nsId string, req rdbmsmodel.RDBMSCreateRequest) (rdbmsmodel.R
 	return tbSess.ValidateRDBMS(nsId, req)
 }
 
+// resolveSourceRDBMSInstanceName determines the display/instance name of a source RDBMS for logging and target mapping.
+func resolveSourceRDBMSInstanceName(src rdbmsmodel.SourceRDBMSProperty) string {
+	if strings.TrimSpace(src.DisplayName) != "" {
+		return strings.TrimSpace(src.DisplayName)
+	}
+	if strings.TrimSpace(src.DBNode.Hostname) != "" {
+		return strings.TrimSpace(src.DBNode.Hostname)
+	}
+	if strings.TrimSpace(src.DBNode.MachineId) != "" {
+		return strings.TrimSpace(src.DBNode.MachineId)
+	}
+	return "rdbms-node"
+}
+
+// calculateEffectiveVcpu extracts effective vCPUs from CPU specs.
+func calculateEffectiveVcpu(node rdbmsmodel.DBNodeProperty) int {
+	if node.CPU.Threads > 0 {
+		return int(node.CPU.Threads)
+	}
+	if node.CPU.Cpus > 0 && node.CPU.Cores > 0 {
+		return int(node.CPU.Cpus * node.CPU.Cores)
+	}
+	return 0
+}
+
+// calculateEffectiveMemoryMb converts Memory TotalSize (GiB) to MB.
+func calculateEffectiveMemoryMb(node rdbmsmodel.DBNodeProperty) int {
+	if node.Memory.TotalSize > 0 {
+		return int(node.Memory.TotalSize * 1024)
+	}
+	return 0
+}
+
+// calculateEffectiveStorageSizeGb sums RootDisk and DataDisks.
+func calculateEffectiveStorageSizeGb(node rdbmsmodel.DBNodeProperty) int {
+	var total uint64
+	if node.RootDisk.TotalSize > 0 {
+		total += node.RootDisk.TotalSize
+	}
+	for _, d := range node.DataDisks {
+		total += d.TotalSize
+	}
+	return int(total)
+}
+
+// determinePrimaryStorageType extracts primary storage type (SSD or HDD).
+func determinePrimaryStorageType(node rdbmsmodel.DBNodeProperty) string {
+	if len(node.DataDisks) > 0 && strings.TrimSpace(node.DataDisks[0].Type) != "" {
+		return strings.TrimSpace(node.DataDisks[0].Type)
+	}
+	if strings.TrimSpace(node.RootDisk.Type) != "" {
+		return strings.TrimSpace(node.RootDisk.Type)
+	}
+	return "SSD"
+}
+
 // ValidateSourceRDBMS strictly validates the source RDBMS model properties before recommendation.
 func ValidateSourceRDBMS(sources []rdbmsmodel.SourceRDBMSProperty) error {
 	if len(sources) == 0 {
@@ -108,46 +164,44 @@ func ValidateSourceRDBMS(sources []rdbmsmodel.SourceRDBMSProperty) error {
 		return err
 	}
 
-	for i, src := range sources {
-		instName := strings.TrimSpace(src.InstanceName)
-		if instName == "" {
-			err := fmt.Errorf("instance [%d]: instanceName is required", i)
-			log.Warn().Msg(err.Error())
-			return err
-		}
+	for _, src := range sources {
+		instName := resolveSourceRDBMSInstanceName(src)
 
-		engine := strings.ToLower(strings.TrimSpace(src.Engine))
+		engine := strings.ToLower(strings.TrimSpace(src.DBEngine.Engine))
 		if engine == "" {
 			err := fmt.Errorf("instance '%s': engine is required", instName)
 			log.Warn().Msg(err.Error())
 			return err
 		}
 
-		if strings.TrimSpace(src.EngineVersion) == "" {
+		if strings.TrimSpace(src.DBEngine.EngineVersion) == "" {
 			err := fmt.Errorf("instance '%s': engineVersion is required", instName)
 			log.Warn().Msg(err.Error())
 			return err
 		}
 
-		if src.Vcpu <= 0 {
-			err := fmt.Errorf("instance '%s': vcpu must be greater than 0 (got %d)", instName, src.Vcpu)
+		vcpu := calculateEffectiveVcpu(src.DBNode)
+		if vcpu <= 0 {
+			err := fmt.Errorf("instance '%s': effective vcpu must be greater than 0 (got %d)", instName, vcpu)
 			log.Warn().Msg(err.Error())
 			return err
 		}
 
-		if src.MemoryMb <= 0 {
-			err := fmt.Errorf("instance '%s': memoryMb must be greater than 0 (got %d)", instName, src.MemoryMb)
+		memoryMb := calculateEffectiveMemoryMb(src.DBNode)
+		if memoryMb <= 0 {
+			err := fmt.Errorf("instance '%s': memory totalSize must be greater than 0", instName)
 			log.Warn().Msg(err.Error())
 			return err
 		}
 
-		if src.StorageSizeGb <= 0 {
-			err := fmt.Errorf("instance '%s': storageSizeGb must be greater than 0 (got %d)", instName, src.StorageSizeGb)
+		storageSizeGb := calculateEffectiveStorageSizeGb(src.DBNode)
+		if storageSizeGb <= 0 {
+			err := fmt.Errorf("instance '%s': storage totalSize must be greater than 0", instName)
 			log.Warn().Msg(err.Error())
 			return err
 		}
 
-		for dbIdx, db := range src.Databases {
+		for dbIdx, db := range src.InnerDatabases {
 			if strings.TrimSpace(db.DatabaseName) == "" {
 				err := fmt.Errorf("instance '%s': database [%d] databaseName is required", instName, dbIdx)
 				log.Warn().Msg(err.Error())
@@ -159,8 +213,138 @@ func ValidateSourceRDBMS(sources []rdbmsmodel.SourceRDBMSProperty) error {
 	return nil
 }
 
+// Default baseline specifications for RDBMS recommendation
+const (
+	DefaultRDBMSAdminUser    string = "dbadmin"
+	DefaultRDBMSVcpu         uint32 = 2
+	DefaultRDBMSMemoryGiB    uint64 = 4
+	DefaultRDBMSStorageGB    uint64 = 100
+	DefaultRDBMSStorageType  string = "SSD"
+	DefaultMySQLVersion      string = "8.0"
+	DefaultMariaDBVersion    string = "10.6"
+	DefaultPostgreSQLVersion string = "15"
+)
+
+// AutoFillSourceRDBMSDefaults inspects source RDBMS instances, applies sensible
+// minimum baseline defaults for zero/unspecified compute, storage, and version values,
+// logs warnings, and returns the defaulted copies along with collected user-facing warnings.
+func AutoFillSourceRDBMSDefaults(sources []rdbmsmodel.SourceRDBMSProperty) ([]rdbmsmodel.SourceRDBMSProperty, []string, error) {
+	if len(sources) == 0 {
+		err := fmt.Errorf("at least one source RDBMS instance is required")
+		log.Warn().Msg(err.Error())
+		return nil, nil, err
+	}
+
+	filled := make([]rdbmsmodel.SourceRDBMSProperty, len(sources))
+	warnings := make([]string, 0)
+
+	for i, src := range sources {
+		n := src
+		instName := resolveSourceRDBMSInstanceName(n)
+
+		// 1. Engine Validation (mandatory)
+		engine := strings.ToLower(strings.TrimSpace(n.DBEngine.Engine))
+		if engine == "" {
+			err := fmt.Errorf("instance '%s': engine is required", instName)
+			log.Warn().Msg(err.Error())
+			return nil, nil, err
+		}
+		n.DBEngine.Engine = engine
+
+		// 2. Engine Version Autofill
+		if strings.TrimSpace(n.DBEngine.EngineVersion) == "" {
+			defaultVer := DefaultMySQLVersion
+			if strings.EqualFold(engine, "mariadb") {
+				defaultVer = DefaultMariaDBVersion
+			} else if strings.EqualFold(engine, "postgresql") {
+				defaultVer = DefaultPostgreSQLVersion
+			}
+			n.DBEngine.EngineVersion = defaultVer
+			msg := fmt.Sprintf("instance '%s': engineVersion not specified; defaulted to '%s'", instName, defaultVer)
+			log.Warn().Msg(msg)
+			warnings = append(warnings, msg)
+		} else {
+			n.DBEngine.EngineVersion = strings.TrimSpace(n.DBEngine.EngineVersion)
+		}
+
+		// 3. Port & Role Autofill
+		if n.DBEngine.Port <= 0 {
+			if strings.EqualFold(engine, "postgresql") {
+				n.DBEngine.Port = 5432
+			} else {
+				n.DBEngine.Port = 3306
+			}
+		}
+		if strings.TrimSpace(n.DBEngine.Role) == "" {
+			n.DBEngine.Role = "standalone"
+		}
+
+		// 4. vCPU Autofill
+		vcpu := calculateEffectiveVcpu(n.DBNode)
+		if vcpu <= 0 {
+			n.DBNode.CPU.Cpus = 1
+			n.DBNode.CPU.Cores = DefaultRDBMSVcpu
+			n.DBNode.CPU.Threads = DefaultRDBMSVcpu
+			msg := fmt.Sprintf("instance '%s': CPU specifications missing or 0; defaulted to %d vCPU", instName, DefaultRDBMSVcpu)
+			log.Warn().Msg(msg)
+			warnings = append(warnings, msg)
+		}
+
+		// 5. Memory Autofill
+		memMb := calculateEffectiveMemoryMb(n.DBNode)
+		if memMb <= 0 {
+			n.DBNode.Memory.TotalSize = DefaultRDBMSMemoryGiB
+			msg := fmt.Sprintf("instance '%s': memory totalSize missing or 0; defaulted to %d GiB (%d MiB)", instName, DefaultRDBMSMemoryGiB, DefaultRDBMSMemoryGiB*1024)
+			log.Warn().Msg(msg)
+			warnings = append(warnings, msg)
+		}
+
+		// 6. Storage Autofill
+		storageGb := calculateEffectiveStorageSizeGb(n.DBNode)
+		if storageGb <= 0 {
+			n.DBNode.RootDisk = rdbmsmodel.DiskProperty{
+				Label:     "/",
+				Type:      DefaultRDBMSStorageType,
+				TotalSize: DefaultRDBMSStorageGB,
+			}
+			msg := fmt.Sprintf("instance '%s': storage totalSize missing or 0; defaulted to %d GB %s", instName, DefaultRDBMSStorageGB, DefaultRDBMSStorageType)
+			log.Warn().Msg(msg)
+			warnings = append(warnings, msg)
+		} else if strings.TrimSpace(determinePrimaryStorageType(n.DBNode)) == "" {
+			if n.DBNode.RootDisk.TotalSize > 0 {
+				n.DBNode.RootDisk.Type = DefaultRDBMSStorageType
+			}
+		}
+
+		// 7. Inner Databases validation
+		for dbIdx, db := range n.InnerDatabases {
+			if strings.TrimSpace(db.DatabaseName) == "" {
+				err := fmt.Errorf("instance '%s': database [%d] databaseName is required", instName, dbIdx)
+				log.Warn().Msg(err.Error())
+				return nil, nil, err
+			}
+		}
+
+		filled[i] = n
+	}
+
+	return filled, warnings, nil
+}
+
+// TargetPreferences represents user-desired deployment preferences and policies for target cloud databases.
+type TargetPreferences struct {
+	AdminUserName            string `json:"adminUserName,omitempty" example:"dbadmin"`
+	HighAvailability         *bool  `json:"highAvailability,omitempty" example:"false"`
+	PublicAccess             *bool  `json:"publicAccess,omitempty" example:"true"`
+	BackupRetentionDays      int    `json:"backupRetentionDays,omitempty" example:"7"`
+	NHNDBSGToAllowAllInbound bool   `json:"nhnDBSGToAllowAllInbound,omitempty" example:"false"`
+}
+
 // RecommendRDBMS recommends optimal managed RDBMS instances for target cloud migration.
-func RecommendRDBMS(desiredCsp, desiredRegion string, sources []rdbmsmodel.SourceRDBMSProperty) (rdbmsmodel.RecommendedRDBMS, error) {
+// If autoFillSourceDefaults is true (default), missing/zero compute and storage values in sources are
+// automatically populated with operational baseline defaults and recorded in warnings.
+// If autoFillSourceDefaults is false, strict validation is enforced via ValidateSourceRDBMS.
+func RecommendRDBMS(desiredCsp, desiredRegion string, sources []rdbmsmodel.SourceRDBMSProperty, autoFillSourceDefaults bool, prefs ...*TargetPreferences) (rdbmsmodel.RecommendedRDBMS, error) {
 	var emptyRes rdbmsmodel.RecommendedRDBMS
 
 	desiredCsp = strings.ToLower(strings.TrimSpace(desiredCsp))
@@ -172,18 +356,75 @@ func RecommendRDBMS(desiredCsp, desiredRegion string, sources []rdbmsmodel.Sourc
 		return emptyRes, err
 	}
 
-	// 1. Upfront Source Model Validation
-	if err := ValidateSourceRDBMS(sources); err != nil {
-		return emptyRes, err
+	warnings := make([]string, 0)
+
+	// 1. Source Model Processing (AutoFill vs Strict Validation)
+	activeSources := sources
+	if autoFillSourceDefaults {
+		filled, autofillWarnings, err := AutoFillSourceRDBMSDefaults(sources)
+		if err != nil {
+			return emptyRes, err
+		}
+		activeSources = filled
+		warnings = append(warnings, autofillWarnings...)
+	} else {
+		if err := ValidateSourceRDBMS(sources); err != nil {
+			return emptyRes, err
+		}
 	}
 
 	log.Info().
 		Str("csp", desiredCsp).
 		Str("region", desiredRegion).
-		Int("sourceCount", len(sources)).
+		Int("sourceCount", len(activeSources)).
+		Bool("autoFillSourceDefaults", autoFillSourceDefaults).
 		Msg("Starting RDBMS recommendation")
 
-	warnings := make([]string, 0)
+	var pref *TargetPreferences
+	if len(prefs) > 0 && prefs[0] != nil {
+		pref = prefs[0]
+	}
+
+	// Resolve target deployment preferences with intelligent defaults
+	targetPublicAccess := true
+	if pref != nil && pref.PublicAccess != nil {
+		targetPublicAccess = *pref.PublicAccess
+	}
+	if desiredCsp == "ncp" {
+		if targetPublicAccess {
+			warnings = append(warnings, "NCP Cloud DB does not provide external public IP by default; instance(s) will be created within private VPC.")
+		}
+		targetPublicAccess = false
+	}
+
+	targetHA := false
+	if pref != nil && pref.HighAvailability != nil {
+		targetHA = *pref.HighAvailability
+	} else {
+		// If preference is unspecified, infer HA if source cluster contains replica nodes
+		for _, s := range activeSources {
+			if strings.EqualFold(strings.TrimSpace(s.DBEngine.Role), "replica") {
+				targetHA = true
+				break
+			}
+		}
+	}
+	if targetHA && desiredCsp == "aws" {
+		warnings = append(warnings, "High availability (Multi-AZ) on AWS requires Subnets in at least two distinct Availability Zones in the target VNet.")
+	}
+
+	targetBackupDays := 7
+	if pref != nil && pref.BackupRetentionDays > 0 {
+		targetBackupDays = pref.BackupRetentionDays
+	}
+	if strings.EqualFold(desiredCsp, "ibm") {
+		targetBackupDays = 0 // IBM Cloud Databases does not support setting BackupRetentionDays during provisioning
+	}
+
+	targetNHNDBSG := false
+	if pref != nil && strings.EqualFold(desiredCsp, "nhn") {
+		targetNHNDBSG = pref.NHNDBSGToAllowAllInbound
+	}
 
 	// 2. Fetch CSP support info from Tumblebug & Validate CSP support
 	supportResp, err := tbclient.NewSession().GetRDBMSSupport(desiredCsp)
@@ -200,24 +441,25 @@ func RecommendRDBMS(desiredCsp, desiredRegion string, sources []rdbmsmodel.Sourc
 	}
 
 	// 3. Validate that each source instance's engine is supported on the target CSP (strictly NO fallback)
-	for _, src := range sources {
-		targetEngine := strings.ToLower(strings.TrimSpace(src.Engine))
+	for _, src := range activeSources {
+		targetEngine := strings.ToLower(strings.TrimSpace(src.DBEngine.Engine))
 		if !isDBEngineSupported(support, hasSupport, targetEngine) {
 			err := fmt.Errorf("dbEngine '%s' is not supported on CSP '%s' (supported engines: %v)", targetEngine, desiredCsp, support.SupportedDBEngines)
-			log.Warn().Err(err).Str("csp", desiredCsp).Str("engine", targetEngine).Str("instance", src.InstanceName).Msg("Source engine validation failed against target CSP")
+			log.Warn().Err(err).Str("csp", desiredCsp).Str("engine", targetEngine).Str("instance", resolveSourceRDBMSInstanceName(src)).Msg("Source engine validation failed against target CSP")
 			return emptyRes, err
 		}
 	}
 
 	// Recommend each target RDBMS instance
-	targetInstances := make([]rdbmsmodel.TargetRDBMSInstance, 0, len(sources))
+	targetInstances := make([]rdbmsmodel.TargetRDBMSInstance, 0, len(activeSources))
 
-	for i, src := range sources {
+	for i, src := range activeSources {
 		instNum := i + 1
 		targetName := fmt.Sprintf("mig-rdbms-%02d", instNum)
+		instName := resolveSourceRDBMSInstanceName(src)
 
 		// 1. Engine & Version Recommendation
-		targetEngine := strings.ToLower(strings.TrimSpace(src.Engine))
+		targetEngine := strings.ToLower(strings.TrimSpace(src.DBEngine.Engine))
 
 		// Fetch engine-specific live capability from Tumblebug
 		connName := fmt.Sprintf("%s-%s", desiredCsp, desiredRegion)
@@ -229,23 +471,28 @@ func RecommendRDBMS(desiredCsp, desiredRegion string, sources []rdbmsmodel.Sourc
 		capa := capaResp.Supports
 
 		// Select Engine Version with strict matching (no arbitrary fallback)
-		targetVersion, err := selectEngineVersion(targetEngine, src.EngineVersion, capa.SupportedVersions, &warnings, src.InstanceName)
+		targetVersion, err := selectEngineVersion(targetEngine, src.DBEngine.EngineVersion, capa.SupportedVersions, &warnings, instName)
 		if err != nil {
-			log.Warn().Err(err).Str("instance", src.InstanceName).Str("engine", targetEngine).Str("version", src.EngineVersion).Msg("Engine version selection failed")
+			log.Warn().Err(err).Str("instance", instName).Str("engine", targetEngine).Str("version", src.DBEngine.EngineVersion).Msg("Engine version selection failed")
 			return emptyRes, err
 		}
 
+		vcpu := calculateEffectiveVcpu(src.DBNode)
+		memoryMb := calculateEffectiveMemoryMb(src.DBNode)
+		storageSizeGb := calculateEffectiveStorageSizeGb(src.DBNode)
+		storageType := determinePrimaryStorageType(src.DBNode)
+
 		// 2. DB Spec Recommendation (Strategy: Conservative Capacity Proximity, Target >= Source)
-		targetSpec, err := recommendDBInstanceSpec(src.Vcpu, src.MemoryMb, src.StorageSizeGb, targetEngine, capa)
+		targetSpec, err := recommendDBInstanceSpec(vcpu, memoryMb, storageSizeGb, targetEngine, capa)
 		if err != nil {
-			log.Warn().Err(err).Str("instance", src.InstanceName).Int("vcpu", src.Vcpu).Int("memoryMb", src.MemoryMb).Int("storageSizeGb", src.StorageSizeGb).Msg("DBInstanceSpec recommendation failed")
+			log.Warn().Err(err).Str("instance", instName).Int("vcpu", vcpu).Int("memoryMb", memoryMb).Int("storageSizeGb", storageSizeGb).Msg("DBInstanceSpec recommendation failed")
 			return emptyRes, err
 		}
 
 		// 3. Storage Type Recommendation using live Notes.StorageTypes and StorageTypeOptions
-		targetStorageType, selectedNote, err := selectStorageType(src.StorageType, capa, &warnings, src.InstanceName)
+		targetStorageType, selectedNote, err := selectStorageType(storageType, capa, &warnings, instName)
 		if err != nil {
-			log.Warn().Err(err).Str("instance", src.InstanceName).Str("storageType", src.StorageType).Msg("Storage type selection failed")
+			log.Warn().Err(err).Str("instance", instName).Str("storageType", storageType).Msg("Storage type selection failed")
 			return emptyRes, err
 		}
 
@@ -261,16 +508,16 @@ func RecommendRDBMS(desiredCsp, desiredRegion string, sources []rdbmsmodel.Sourc
 			}
 		}
 
-		targetStorageSize := src.StorageSizeGb
+		targetStorageSize := storageSizeGb
 		if minStorage > 0 && targetStorageSize < minStorage {
 			warning := fmt.Sprintf("Adjusted storage size for instance '%s' from %dGB to minimum %dGB required by target cloud (%s).",
-				src.InstanceName, targetStorageSize, minStorage, targetStorageType)
+				instName, targetStorageSize, minStorage, targetStorageType)
 			warnings = append(warnings, warning)
 			targetStorageSize = minStorage
 		}
 		if maxStorage > 0 && targetStorageSize > maxStorage {
 			warning := fmt.Sprintf("Clamped storage size for instance '%s' from %dGB to maximum %dGB supported by target cloud.",
-				src.InstanceName, targetStorageSize, maxStorage)
+				instName, targetStorageSize, maxStorage)
 			warnings = append(warnings, warning)
 			targetStorageSize = maxStorage
 		}
@@ -282,61 +529,28 @@ func RecommendRDBMS(desiredCsp, desiredRegion string, sources []rdbmsmodel.Sourc
 			if selectedNote.IopsRange != nil && selectedNote.IopsRange.Min > 0 {
 				assignedIops = selectedNote.IopsRange.Min
 			}
-			if src.Iops > 0 {
-				assignedIops = src.Iops
-				if selectedNote.IopsRange != nil {
-					if selectedNote.IopsRange.Min > 0 && assignedIops < selectedNote.IopsRange.Min {
-						assignedIops = selectedNote.IopsRange.Min
-					}
-					if selectedNote.IopsRange.Max > 0 && assignedIops > selectedNote.IopsRange.Max {
-						assignedIops = selectedNote.IopsRange.Max
-					}
-				}
-			}
 			targetIops = fmt.Sprintf("%d", assignedIops)
 		}
 
-		// 4. Admin Credentials Default from Capability
-		targetAdminUser := "cbuser"
-		if capa.AdminUserNameRequirement != nil && capa.AdminUserNameRequirement.FixedValue != "" {
-			targetAdminUser = capa.AdminUserNameRequirement.FixedValue
-		} else if capa.AdminUserNameRequirement != nil && len(capa.AdminUserNameRequirement.ReservedValues) > 0 {
-			for _, reserved := range capa.AdminUserNameRequirement.ReservedValues {
-				if strings.EqualFold(targetAdminUser, reserved) {
-					targetAdminUser = "dbadmin"
-					break
-				}
-			}
+		// 4. Admin Credentials Recommendation
+		userAdmin := ""
+		if pref != nil {
+			userAdmin = pref.AdminUserName
 		}
+		targetAdminUser := resolveTargetAdminUser(userAdmin, capa.AdminUserNameRequirement, &warnings)
 
-		// 5. Network & CSP-specific warnings
-		if desiredCsp == "ncp" && src.PublicAccess {
-			warning := fmt.Sprintf("NCP Cloud DB does not provide external public IP by default; instance '%s' will be created within private VPC.", src.InstanceName)
-			warnings = append(warnings, warning)
-		}
-		targetNHNDBSG := src.NHNDBSGToAllowAllInbound
-		if src.HighAvailability && desiredCsp == "aws" {
-			warning := fmt.Sprintf("High availability (Multi-AZ) on AWS requires Subnets in at least two distinct Availability Zones for instance '%s'.", src.InstanceName)
-			warnings = append(warnings, warning)
-		}
-
-		// 6. Map Inner Databases
-		targetDatabases := make([]rdbmsmodel.TargetDatabase, 0, len(src.Databases))
-		for _, db := range src.Databases {
+		// 5. Map Inner Databases
+		targetDatabases := make([]rdbmsmodel.TargetDatabase, 0, len(src.InnerDatabases))
+		for _, db := range src.InnerDatabases {
 			targetDatabases = append(targetDatabases, rdbmsmodel.TargetDatabase{
 				DatabaseName: db.DatabaseName,
 				CharacterSet: db.CharacterSet,
 			})
 		}
 
-		targetBackupDays := src.BackupRetentionDays
-		if strings.EqualFold(desiredCsp, "ibm") {
-			targetBackupDays = 0 // IBM Cloud Databases does not support setting BackupRetentionDays during provisioning
-		}
-
 		targetInst := rdbmsmodel.TargetRDBMSInstance{
-			SourceInstanceName:       src.InstanceName,
-			SourceMachineId:          src.MachineId,
+			SourceInstanceName:       instName,
+			SourceMachineId:          src.DBNode.MachineId,
 			RDBMSName:                targetName,
 			DBEngine:                 targetEngine,
 			DBEngineVersion:          targetVersion,
@@ -345,9 +559,9 @@ func RecommendRDBMS(desiredCsp, desiredRegion string, sources []rdbmsmodel.Sourc
 			StorageSize:              targetStorageSize,
 			Iops:                     targetIops,
 			AdminUserName:            targetAdminUser,
-			HighAvailability:         src.HighAvailability,
+			HighAvailability:         targetHA,
 			BackupRetentionDays:      targetBackupDays,
-			PublicAccess:             src.PublicAccess,
+			PublicAccess:             targetPublicAccess,
 			NHNDBSGToAllowAllInbound: targetNHNDBSG,
 			Databases:                targetDatabases,
 		}
@@ -369,6 +583,34 @@ func RecommendRDBMS(desiredCsp, desiredRegion string, sources []rdbmsmodel.Sourc
 		Msg("RDBMS recommendation completed")
 
 	return result, nil
+}
+
+// resolveTargetAdminUser resolves the target database administrator username.
+// It uses the user's preference if valid, or falls back to CSP FixedValue / DefaultRDBMSAdminUser.
+func resolveTargetAdminUser(requestedUser string, req *rdbmsmodel.RDBMSAdminUserNameRequirement, warnings *[]string) string {
+	adminUser := strings.TrimSpace(requestedUser)
+	if adminUser == "" {
+		adminUser = DefaultRDBMSAdminUser
+	}
+
+	if req != nil {
+		if req.FixedValue != "" {
+			adminUser = req.FixedValue
+		} else {
+			for _, reserved := range req.ReservedValues {
+				if strings.EqualFold(adminUser, reserved) {
+					adminUser = DefaultRDBMSAdminUser
+					break
+				}
+			}
+		}
+	}
+
+	if requestedUser != "" && adminUser != requestedUser && warnings != nil {
+		*warnings = append(*warnings, fmt.Sprintf("Admin username '%s' not allowed on target cloud; defaulted to '%s'", requestedUser, adminUser))
+	}
+
+	return adminUser
 }
 
 // selectEngineVersion selects the best-matching target database engine version from capability.

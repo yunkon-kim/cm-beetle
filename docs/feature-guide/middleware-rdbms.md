@@ -164,26 +164,63 @@ Fetch live DB instance spec catalogs, supported engine versions, and storage con
 Recommends optimal target RDBMS specifications based on source database workloads and desired cloud properties.
 
 - **Endpoint**: `POST /recommendation/middleware/rdbms`
-- **Request Body**: `RDBMSRecommendationRequest`
+- **Request Body**: `RecommendRDBMSRequest`
 
 **Sample Request**:
 
 ```json
 {
   "desiredCloud": {
-    "provider": "aws",
+    "csp": "aws",
     "region": "ap-northeast-2"
   },
-  "sourceInstances": [
+  "autoFillSourceDefaults": true,
+  "targetPreferences": {
+    "adminUserName": "dbadmin",
+    "highAvailability": true,
+    "publicAccess": true,
+    "backupRetentionDays": 7
+  },
+  "sourceRDBMSInstances": [
     {
-      "id": "source-mysql-01",
-      "name": "Production User DB",
-      "engine": "mysql",
-      "version": "8.0",
-      "vCpu": "4",
-      "memoryGiB": "16",
-      "dataVolumeSizeGiB": 100,
-      "highAvailability": true
+      "displayName": "source-mysql-01",
+      "description": "Production user database instance",
+      "dbNode": {
+        "hostname": "db-server-01",
+        "cpu": {
+          "cpus": 1,
+          "cores": 4,
+          "threads": 4
+        },
+        "memory": {
+          "totalSize": 16
+        },
+        "rootDisk": {
+          "label": "/",
+          "totalSize": 50,
+          "type": "SSD"
+        },
+        "dataDisks": [
+          {
+            "label": "/data",
+            "totalSize": 50,
+            "type": "SSD"
+          }
+        ]
+      },
+      "dbEngine": {
+        "engine": "mysql",
+        "engineVersion": "8.0",
+        "port": 3306,
+        "role": "primary"
+      },
+      "innerDatabases": [
+        {
+          "databaseName": "userdb",
+          "characterSet": "utf8mb4",
+          "collation": "utf8mb4_unicode_ci"
+        }
+      ]
     }
   ]
 }

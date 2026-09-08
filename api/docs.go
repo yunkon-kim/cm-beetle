@@ -9656,6 +9656,10 @@ const docTemplate = `{
                 "sourceRDBMSInstances"
             ],
             "properties": {
+                "autoFillSourceDefaults": {
+                    "type": "boolean",
+                    "example": true
+                },
                 "desiredCloud": {
                     "$ref": "#/definitions/rdbmsmodel.CloudProperty"
                 },
@@ -9665,6 +9669,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/rdbmsmodel.SourceRDBMSProperty"
                     }
+                },
+                "targetPreferences": {
+                    "$ref": "#/definitions/recommendation.TargetPreferences"
                 }
             }
         },
@@ -13176,6 +13183,172 @@ const docTemplate = `{
                 }
             }
         },
+        "rdbmsmodel.CpuProperty": {
+            "type": "object",
+            "required": [
+                "cores",
+                "cpus",
+                "threads"
+            ],
+            "properties": {
+                "architecture": {
+                    "type": "string",
+                    "example": "x86_64"
+                },
+                "cores": {
+                    "description": "Number of physical cores per CPU",
+                    "type": "integer",
+                    "example": 2
+                },
+                "cpus": {
+                    "description": "Number of physical CPUs (sockets)",
+                    "type": "integer",
+                    "example": 1
+                },
+                "maxSpeed": {
+                    "description": "Maximum speed in GHz",
+                    "type": "number",
+                    "example": 3.6
+                },
+                "model": {
+                    "type": "string",
+                    "example": "Intel(R) Xeon(R) Gold 6140 CPU @ 2.30GHz"
+                },
+                "threads": {
+                    "description": "Number of logical CPUs (threads) per CPU",
+                    "type": "integer",
+                    "example": 2
+                },
+                "vendor": {
+                    "type": "string",
+                    "example": "GenuineIntel"
+                }
+            }
+        },
+        "rdbmsmodel.DBEngineProperty": {
+            "type": "object",
+            "required": [
+                "engine",
+                "engineVersion"
+            ],
+            "properties": {
+                "engine": {
+                    "description": "\"mysql\", \"mariadb\", \"postgresql\"",
+                    "type": "string",
+                    "example": "mysql"
+                },
+                "engineVersion": {
+                    "description": "e.g. \"8.0\", \"10.5\"",
+                    "type": "string",
+                    "example": "8.0"
+                },
+                "port": {
+                    "description": "DB port (default: 3306)",
+                    "type": "integer",
+                    "example": 3306
+                },
+                "role": {
+                    "description": "\"primary\" (writer), \"replica\" (reader), \"standalone\"",
+                    "type": "string",
+                    "example": "primary"
+                }
+            }
+        },
+        "rdbmsmodel.DBNodeProperty": {
+            "type": "object",
+            "required": [
+                "cpu",
+                "memory"
+            ],
+            "properties": {
+                "cpu": {
+                    "$ref": "#/definitions/rdbmsmodel.CpuProperty"
+                },
+                "dataDisks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/rdbmsmodel.DiskProperty"
+                    }
+                },
+                "hostname": {
+                    "type": "string",
+                    "example": "db-node-01"
+                },
+                "machineId": {
+                    "type": "string",
+                    "example": "node-550e8400-e29b-41d4-a716-446655440000"
+                },
+                "memory": {
+                    "$ref": "#/definitions/rdbmsmodel.MemoryProperty"
+                },
+                "rootDisk": {
+                    "$ref": "#/definitions/rdbmsmodel.DiskProperty"
+                }
+            }
+        },
+        "rdbmsmodel.DiskProperty": {
+            "type": "object",
+            "required": [
+                "totalSize",
+                "type"
+            ],
+            "properties": {
+                "available": {
+                    "description": "Unit GB",
+                    "type": "integer"
+                },
+                "label": {
+                    "type": "string",
+                    "example": "/"
+                },
+                "totalSize": {
+                    "description": "Unit GB",
+                    "type": "integer",
+                    "example": 100
+                },
+                "type": {
+                    "description": "SSD, HDD",
+                    "type": "string",
+                    "example": "SSD"
+                },
+                "used": {
+                    "description": "Unit GB",
+                    "type": "integer"
+                }
+            }
+        },
+        "rdbmsmodel.InnerDatabaseProperty": {
+            "type": "object",
+            "required": [
+                "databaseName"
+            ],
+            "properties": {
+                "characterSet": {
+                    "type": "string",
+                    "example": "utf8mb4"
+                },
+                "collation": {
+                    "type": "string",
+                    "example": "utf8mb4_unicode_ci"
+                },
+                "databaseName": {
+                    "type": "string",
+                    "example": "sampledb"
+                },
+                "rowCount": {
+                    "type": "integer",
+                    "example": 150000
+                },
+                "sizeMb": {
+                    "type": "number",
+                    "example": 512.5
+                },
+                "tableCount": {
+                    "type": "integer",
+                    "example": 24
+                }
+            }
+        },
         "rdbmsmodel.KeyValue": {
             "type": "object",
             "properties": {
@@ -13198,6 +13371,31 @@ const docTemplate = `{
                 },
                 "longitude": {
                     "type": "number"
+                }
+            }
+        },
+        "rdbmsmodel.MemoryProperty": {
+            "type": "object",
+            "required": [
+                "totalSize"
+            ],
+            "properties": {
+                "available": {
+                    "description": "Unit GiB",
+                    "type": "integer"
+                },
+                "totalSize": {
+                    "description": "Unit GiB",
+                    "type": "integer",
+                    "example": 4
+                },
+                "type": {
+                    "type": "string",
+                    "example": "DDR4"
+                },
+                "used": {
+                    "description": "Unit GiB",
+                    "type": "integer"
                 }
             }
         },
@@ -13898,121 +14096,45 @@ const docTemplate = `{
                 }
             }
         },
-        "rdbmsmodel.SourceDatabaseProperty": {
-            "type": "object",
-            "required": [
-                "databaseName"
-            ],
-            "properties": {
-                "characterSet": {
-                    "type": "string",
-                    "example": "utf8mb4"
-                },
-                "collation": {
-                    "type": "string",
-                    "example": "utf8mb4_unicode_ci"
-                },
-                "databaseName": {
-                    "type": "string",
-                    "example": "order_db"
-                },
-                "sizeMb": {
-                    "type": "number",
-                    "example": 512.5
-                },
-                "tableCount": {
-                    "type": "integer",
-                    "example": 24
-                }
-            }
-        },
         "rdbmsmodel.SourceRDBMSProperty": {
             "type": "object",
             "required": [
-                "engine",
-                "engineVersion",
-                "instanceName",
-                "memoryMb",
-                "storageSizeGb",
-                "vcpu"
+                "dbEngine",
+                "dbNode"
             ],
             "properties": {
-                "backupRetentionDays": {
-                    "description": "Backup \u0026 Policy",
-                    "type": "integer",
-                    "example": 7
+                "dbEngine": {
+                    "description": "DBEngine represents the database engine software (type, version, port, role, HA).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/rdbmsmodel.DBEngineProperty"
+                        }
+                    ]
                 },
-                "databases": {
-                    "description": "Logical Databases (Inner DBs)",
+                "dbNode": {
+                    "description": "DBNode represents the underlying host/server infrastructure specs (CPU, Memory, Disks).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/rdbmsmodel.DBNodeProperty"
+                        }
+                    ]
+                },
+                "description": {
+                    "description": "Description is an optional free-form note or business purpose.",
+                    "type": "string",
+                    "example": "Production billing service master database"
+                },
+                "displayName": {
+                    "description": "DisplayName is an optional human-friendly alias or cloud DB identifier (e.g. \"billing-db\").",
+                    "type": "string",
+                    "example": "billing-db"
+                },
+                "innerDatabases": {
+                    "description": "InnerDatabases lists the logical tenant databases residing inside this RDBMS instance.",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/rdbmsmodel.SourceDatabaseProperty"
+                        "$ref": "#/definitions/rdbmsmodel.InnerDatabaseProperty"
                     }
-                },
-                "engine": {
-                    "description": "Engine \u0026 Version",
-                    "type": "string",
-                    "example": "mysql"
-                },
-                "engineVersion": {
-                    "description": "e.g. \"8.0\", \"10.5\"",
-                    "type": "string",
-                    "example": "8.0"
-                },
-                "highAvailability": {
-                    "description": "HA / Replication mode",
-                    "type": "boolean",
-                    "example": false
-                },
-                "instanceName": {
-                    "description": "InstanceName is the identifier for the DB instance.",
-                    "type": "string",
-                    "example": "prod-mysql-01"
-                },
-                "iops": {
-                    "description": "Observed IOPS",
-                    "type": "integer",
-                    "example": 3000
-                },
-                "machineId": {
-                    "description": "MachineId is the optional host machine identifier (e.g., node UUID) for infra traceability.",
-                    "type": "string",
-                    "example": "550e8400-e29b-41d4-a716-446655440000"
-                },
-                "memoryMb": {
-                    "description": "Memory in MB",
-                    "type": "integer",
-                    "example": 8192
-                },
-                "nhnDBSGToAllowAllInbound": {
-                    "description": "NHN-specific: allow inbound 3306 from 0.0.0.0/0 on DB Security Group",
-                    "type": "boolean",
-                    "example": false
-                },
-                "port": {
-                    "description": "Network \u0026 Topology",
-                    "type": "integer",
-                    "example": 3306
-                },
-                "publicAccess": {
-                    "description": "External public access enabled",
-                    "type": "boolean",
-                    "example": false
-                },
-                "storageSizeGb": {
-                    "description": "Storage",
-                    "type": "integer",
-                    "example": 100
-                },
-                "storageType": {
-                    "description": "Storage type (e.g. SSD, HDD)",
-                    "type": "string",
-                    "example": "SSD"
-                },
-                "vcpu": {
-                    "description": "Compute \u0026 Memory",
-                    "type": "integer",
-                    "example": 4
                 }
             }
         },
@@ -14137,7 +14259,7 @@ const docTemplate = `{
                 "adminUserName": {
                     "description": "Admin Credentials",
                     "type": "string",
-                    "example": "cbuser"
+                    "example": "dbadmin"
                 },
                 "adminUserPassword": {
                     "type": "string",
@@ -14236,6 +14358,31 @@ const docTemplate = `{
                     "description": "Network \u0026 Access",
                     "type": "string",
                     "example": "vnet-01"
+                }
+            }
+        },
+        "recommendation.TargetPreferences": {
+            "type": "object",
+            "properties": {
+                "adminUserName": {
+                    "type": "string",
+                    "example": "dbadmin"
+                },
+                "backupRetentionDays": {
+                    "type": "integer",
+                    "example": 7
+                },
+                "highAvailability": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "nhnDBSGToAllowAllInbound": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "publicAccess": {
+                    "type": "boolean",
+                    "example": true
                 }
             }
         },

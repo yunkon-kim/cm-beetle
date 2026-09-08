@@ -29,7 +29,7 @@ type TargetRDBMSInstance struct {
 	Iops           string `json:"iops,omitempty" example:"3000"`
 
 	// Admin Credentials
-	AdminUserName     string `json:"adminUserName" validate:"required" example:"cbuser"`
+	AdminUserName     string `json:"adminUserName" validate:"required" example:"dbadmin"`
 	AdminUserPassword string `json:"adminUserPassword,omitempty" example:"Password123!"`
 
 	// Network & Access
