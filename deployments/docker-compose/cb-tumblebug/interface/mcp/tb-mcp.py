@@ -9622,6 +9622,7 @@ def _expand_command_templates(command: str, access_info: Dict, infra_id: str) ->
     - $$Func(GetPublicIP(target=this))
     - $$Func(GetPublicIPs(separator=' '))
     - $$Func(GetInfraId())
+    - $$Func(GetNodeIds(separator=' ', label='accelerator=gpu'))
     - $$Func(AssignTask(task='...'))
     - etc.
     """

@@ -33,8 +33,8 @@ When upgrading CB-Tumblebug, check each file against the upstream source and syn
      diff -qr $BEETLE/$dir $TB/$dir 2>&1 | grep "^Only in $TB"
    done
 
-   # Note: assets/spider is excluded from synchronization (cb-tumblebug issue #2694)
-   # Note: assets/rdbmsinfo.yaml is required for Tumblebug managed RDBMS feature
+   # Note: assets/spider has been deprecated and removed
+   # Note: assets/rdbmsinfo.yaml is maintained directly in cm-beetle for managed RDBMS feature
    ```
 
 3. Review individual file changes and copy updated files:
@@ -53,42 +53,37 @@ When upgrading CB-Tumblebug, check each file against the upstream source and syn
 
 ---
 
-## v0.13.2 Sync (2026-09-01)
+## v0.13.3 Sync (2026-09-08)
 
-Based on CB-Tumblebug tag `v0.13.2` (`2a7436583f889cc794ebf37d151362a2e684e871`). Upgrade path: **v0.13.1 &rarr; v0.13.2**.
+Based on CB-Tumblebug tag `v0.13.3` (`af9ba2056d6f075e35e08c2ab32a0d90fd22b71a`). Upgrade path: **v0.13.2 &rarr; v0.13.3**.
 
-### Model Changes (v0.13.1 &rarr; v0.13.2)
+### Model Changes (v0.13.2 &rarr; v0.13.3)
 
 | Change | Description |
 | --- | --- |
-| **`NodeInfo`**: `Failure` | Added structured `Failure *ProvisioningFailure` field representing node creation failure classification, zone attempts, and retryability |
-| **`ProvisioningFailure` & `ZoneCapability`** | Added failure classification struct and zone shifting capability model with `Failure*` and `RetryHint*` constants |
-| **`RDBMSDBMSRequirement`**: `DeprecatedVersions`, `EndOfLifeVersions` | Added version deprecation and EOL status tracking in managed RDBMS metadata |
-| **`RDBMSCreateRequest` / `RDBMSInfo`**: `NHNDBSGToAllowAllInbound` | Added NHN Cloud DB security group inbound rule option |
-| **`NodeSummary` & `InfraInfoSummary`** | Maintained lightweight projection structs for Infra list views (`GET /ns/{nsId}/infra`) |
+| **`ExecCredentialStatus`**: `ExpirationTimestamp` | Added optional `ExpirationTimestamp *string` relaying token expiry (RFC3339) from CB-Spider for Kubernetes exec-based authentication |
+| **Model Version Headers** | Updated `copied-tb-model.go` and `copied-tb-k8s-model.go` version headers to CB-Tumblebug `v0.13.3` (`af9ba2056d6f075e35e08c2ab32a0d90fd22b71a`) |
 
 ### Deployment File Changes
 
 | File | Action |
 | --- | --- |
 | **Model files (`imdl/cloud-model/`)** | |
-| `copied-tb-model.go` | **Updated** — Synced with v0.13.2 (`2a743658`): added `NodeInfo.Failure`, `ProvisioningFailure`, `ZoneCapability`, failure constants, version header |
-| `copied-tb-k8s-model.go` | **Updated** — Synced version header to `v0.13.2` (`2a743658`) |
+| `copied-tb-model.go` | **Updated** — Synced version header to `v0.13.3` (`af9ba205`) |
+| `copied-tb-k8s-model.go` | **Updated** — Synced with v0.13.3 (`af9ba205`): added `ExecCredentialStatus.ExpirationTimestamp`, version header |
 | **Go Module Dependencies (`go.mod`)** | |
-| `go.mod` | **Updated** — `github.com/cloud-barista/cb-tumblebug` updated from `v0.13.1` to `v0.13.2` |
+| `go.mod` | **Updated** — `github.com/cloud-barista/cb-tumblebug` updated from `v0.13.2` to `v0.13.3` |
 | **Docker Compose (`deployments/docker-compose/`)** | |
-| `docker-compose.yaml` | **Updated** — Synced service images: `cb-spider:0.13.2`, `cb-mapui:0.13.6`, `cb-tumblebug:0.13.2` |
+| `docker-compose.yaml` | **Updated** — Synced service images: `cb-spider:0.13.4`, `cb-mapui:0.13.7`, `cb-tumblebug:0.13.3` |
 | **Assets & Scripts (`deployments/docker-compose/cb-tumblebug/`)** | |
-| `assets/assets.dump.gz` | **No change** — Verified MD5 `dba8da8e89b5ebdd203daf7c4480147b` (39MB dump matches upstream) |
+| `assets/spider/` | **Removed** — No longer maintained per project decision |
+| `assets/assets.dump.gz` | **No change** — Verified MD5 `dba8da8e89b5ebdd203daf7c4480147b` (matches upstream) |
 | `assets/assets.dump.gz.info` | **No change** — Verified matches upstream sidecar manifest |
-| `assets/k8sclusterinfo.yaml` | **No change** — Verified matches upstream K8s version and CSP support metadata |
-| `assets/diskinfo.yaml` | **No change** — Verified matches upstream disk specifications and IOPS metadata |
-| `assets/rdbmsinfo.yaml` | **No change** — Verified matches upstream multi-cloud RDBMS capability matrix |
-| `assets/cloudinfo.yaml`, `extractionpatterns.yaml`, etc. | **No change** — Verified matches upstream provider configurations |
-| `init/templates/*` | **No change** — Verified matches 28 standardized templates (`infra-*.json`, `k8scluster-across.json`, `sg-*.json`, `vnet-*.json`) |
-| `scripts/lib/pg-backend.sh` | **No change** — Verified matches upstream Postgres backend detection library |
-| `scripts/restore-assets.sh`, `backup-assets.sh` | **No change** — Verified matches upstream asset utilities |
-| `interface/mcp/*` | **No change** — Verified matches upstream stateless HTTP mode and proxy configurations |
+| `assets/rdbmsinfo.yaml` | **Maintained** — Preserved latest CM-Beetle RDBMS metadata as instructed |
+| `assets/cloudinfo.yaml`, `diskinfo.yaml`, `k8sclusterinfo.yaml`, etc. | **No change** — Verified matches upstream provider configurations |
+| `init/templates/infra-usecase-llm-bench.json` | **Updated** — Synced multi-CSP GPU node group benchmarking template (NVIDIA A10, L20, L4, L40S, AMD V710) |
+| `scripts/*` | **No change** — Verified matches upstream asset utilities and lib scripts |
+| `interface/mcp/tb-mcp.py` | **Updated** — Synced upstream command template expansions (`GetNodeIds`) |
 
 ## Upstream Source Paths
 
