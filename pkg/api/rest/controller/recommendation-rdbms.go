@@ -128,8 +128,10 @@ func ValidateRDBMS(c echo.Context) error {
 
 // RecommendRDBMSRequest represents a request for managed RDBMS migration recommendations
 type RecommendRDBMSRequest struct {
-	DesiredCloud         rdbmsmodel.CloudProperty         `json:"desiredCloud" validate:"required"`
-	SourceRDBMSInstances []rdbmsmodel.SourceRDBMSProperty `json:"sourceRDBMSInstances" validate:"required,min=1"`
+	DesiredCloud           rdbmsmodel.CloudProperty          `json:"desiredCloud" validate:"required"`
+	AutoFillSourceDefaults *bool                             `json:"autoFillSourceDefaults,omitempty" example:"true"`
+	TargetPreferences      *recommendation.TargetPreferences `json:"targetPreferences,omitempty"`
+	SourceRDBMSInstances   []rdbmsmodel.SourceRDBMSProperty  `json:"sourceRDBMSInstances" validate:"required,min=1"`
 }
 
 // RecommendRDBMS godoc
@@ -182,20 +184,20 @@ func RecommendRDBMS(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, model.SimpleErrorResponse("At least one source RDBMS instance required"))
 	}
 
-	// Validate Source RDBMS Model
-	if err := recommendation.ValidateSourceRDBMS(req.SourceRDBMSInstances); err != nil {
-		log.Warn().Err(err).Msg("Invalid source RDBMS instance configuration")
-		return c.JSON(http.StatusBadRequest, model.SimpleErrorResponse(err.Error()))
+	autoFill := true
+	if req.AutoFillSourceDefaults != nil {
+		autoFill = *req.AutoFillSourceDefaults
 	}
 
 	log.Info().
 		Str("desiredCsp", desiredCsp).
 		Str("region", desiredRegion).
 		Int("sourceInstances", len(req.SourceRDBMSInstances)).
+		Bool("autoFillSourceDefaults", autoFill).
 		Msg("Processing managed RDBMS recommendation request")
 
 	// [Process]
-	recommended, err := recommendation.RecommendRDBMS(desiredCsp, desiredRegion, req.SourceRDBMSInstances)
+	recommended, err := recommendation.RecommendRDBMS(desiredCsp, desiredRegion, req.SourceRDBMSInstances, autoFill, req.TargetPreferences)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to recommend managed RDBMS")
 		return c.JSON(http.StatusBadRequest, model.SimpleErrorResponse(err.Error()))

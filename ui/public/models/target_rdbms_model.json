@@ -17,7 +17,7 @@
       "storageType": "gp3",
       "storageSize": 150,
       "iops": "3000",
-      "adminUserName": "cbuser",
+      "adminUserName": "dbadmin",
       "adminUserPassword": "BeetleRdbmsPassword123!",
       "highAvailability": false,
       "backupRetentionDays": 7,

@@ -1,9 +1,9 @@
 # Managed RDBMS (MySQL) Test Report: GCP (us-central1)
 
 - **Test Case:** GCP US-Central1 MySQL Test
-- **Date & Time:** 2026-09-08 10:31:39
+- **Date & Time:** 2026-09-08 14:58:41
 - **Namespace:** `default`
-- **Total Duration:** 15m1.644s
+- **Total Duration:** 14m40.98s
 - **Overall Status:** ✅ PASSED
 
 ## Environment and Scenario
@@ -12,7 +12,7 @@
 - **Target CSP:** GCP
 - **Target Region:** `us-central1`
 - **Namespace:** `default`
-- **Test Date:** 2026-09-08 10:31:39
+- **Test Date:** 2026-09-08 14:58:41
 
 ### Scenario & Tested APIs
 1. **Pre-flight Spec & Image Review**: `POST /tumblebug/specImagePairReview`
@@ -33,12 +33,12 @@
 ## Execution Steps & API Traces
 
 ### 1. Tumblebug POST /specImagePairReview (Pre-flight Spec & Image Review) [✅ SUCCESS]
-- **Duration:** 4.809s
+- **Duration:** 5.51s
 - **Request URL:** `http://localhost:1323/tumblebug/specImagePairReview`
 ```json
 // Request Body
 {
-  "imageId": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/images/ubuntu-minimal-2404-noble-amd64-v20260817",
+  "imageId": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/images/ubuntu-2404-noble-amd64-v20260820",
   "specId": "gcp+us-central1+e2-standard-2"
 }
 ```
@@ -49,14 +49,14 @@
     "available": true,
     "instanceType": "e2-standard-2",
     "provider": "gcp",
-    "queriedAt": "2026-09-08T01:31:43.830881068Z",
+    "queriedAt": "2026-09-08T05:58:44.032857709Z",
     "region": "us-central1",
     "source": "gcp:machineTypes.aggregatedList",
     "zones": [
       {
         "available": true,
         "status": "AVAILABLE",
-        "zoneId": "us-central1-b"
+        "zoneId": "us-central1-a"
       },
       {
         "available": true,
@@ -66,12 +66,12 @@
       {
         "available": true,
         "status": "AVAILABLE",
-        "zoneId": "us-central1-a"
+        "zoneId": "us-central1-f"
       },
       {
         "available": true,
         "status": "AVAILABLE",
-        "zoneId": "us-central1-f"
+        "zoneId": "us-central1-b"
       }
     ]
   },
@@ -81,8 +81,8 @@
     "commandHistory": null,
     "connectionName": "gcp-africa-south1",
     "creationDate": "",
-    "cspImageName": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/images/ubuntu-minimal-2404-noble-amd64-v20260817",
-    "description": "Canonical, Ubuntu, 24.04 LTS Minimal, amd64 noble minimal image built on 2026-08-17",
+    "cspImageName": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/images/ubuntu-2404-noble-amd64-v20260820",
+    "description": "Canonical, Ubuntu, 24.04 LTS, amd64 noble image built on 2026-08-20",
     "details": [
       {
         "key": "Architecture",
@@ -90,15 +90,15 @@
       },
       {
         "key": "ArchiveSizeBytes",
-        "value": "50232915200"
+        "value": "60138870400"
       },
       {
         "key": "CreationTimestamp",
-        "value": "2026-08-18T02:42:50.563-07:00"
+        "value": "2026-08-20T05:48:46.989-07:00"
       },
       {
         "key": "Description",
-        "value": "Canonical, Ubuntu, 24.04 LTS Minimal, amd64 noble minimal image built on 2026-08-17"
+        "value": "Canonical, Ubuntu, 24.04 LTS, amd64 noble image built on 2026-08-20"
       },
       {
         "key": "DiskSizeGb",
@@ -110,7 +110,7 @@
       },
       {
         "key": "Family",
-        "value": "ubuntu-minimal-2404-lts-amd64"
+        "value": "ubuntu-2404-lts-amd64"
       },
       {
         "key": "GuestOsFeatures",
@@ -118,7 +118,7 @@
       },
       {
         "key": "Id",
-        "value": "5467262061071931381"
+        "value": "2634297659785693505"
       },
       {
         "key": "Kind",
@@ -134,15 +134,15 @@
       },
       {
         "key": "LicenseCodes",
-        "value": "6508311393003325021"
+        "value": "3242930272766215801"
       },
       {
         "key": "Licenses",
-        "value": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/licenses/ubuntu-minimal-2404-lts"
+        "value": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/licenses/ubuntu-2404-lts"
       },
       {
         "key": "Name",
-        "value": "ubuntu-minimal-2404-noble-amd64-v20260817"
+        "value": "ubuntu-2404-noble-amd64-v20260820"
       },
       {
         "key": "RawDisk",
@@ -158,7 +158,7 @@
       },
       {
         "key": "SelfLink",
-        "value": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/images/ubuntu-minimal-2404-noble-amd64-v20260817"
+        "value": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/images/ubuntu-2404-noble-amd64-v20260820"
       },
       {
         "key": "SourceType",
@@ -170,23 +170,23 @@
       },
       {
         "key": "StorageLocations",
-        "value": "me-central2; asia-northeast3; asia-east1; us-central2; europe-north1; europe-west15; europe-southwest1; asia-northeast1; northamerica-northeast2; me-west1; australia-southeast2; us-west1; europe-west10; australia-southeast1; africa-south1; europe-west3; us-west2; asia-southeast3; europe-central2; asia-northeast2; us-central1; northamerica-south1; us-west8; us-east7; asia-east2; us-west3; southamerica-west1; europe-west12; us-west4; europe-north2; asia; us; me-central1; us-east1; europe-west2; us-south1; asia-south1; asia-south2; europe-west4; europe-west1; asia-southeast1; us-east4; europe-west9; europe-west6; southamerica-east1; northamerica-northeast1; europe-west8; us-east5; asia-southeast2; eu"
+        "value": "us; asia-east1; europe-west1; asia-northeast1; asia-northeast2; asia-southeast2; asia-southeast3; us-central1; us-west3; australia-southeast2; northamerica-northeast1; us-central2; australia-southeast1; asia; europe-west8; northamerica-south1; northamerica-northeast2; asia-south1; me-central2; us-west2; me-central1; asia-northeast3; europe-north2; us-east5; us-east7; europe-southwest1; asia-east2; europe-west6; europe-west4; europe-west3; us-east4; us-east1; asia-southeast1; europe-west12; europe-north1; southamerica-west1; europe-west9; europe-west10; us-west1; us-west8; us-south1; southamerica-east1; europe-west15; us-west4; asia-south2; europe-west2; europe-central2; africa-south1; me-west1; eu"
       }
     ],
     "fetchedTime": "2026.08.21 13:58:59 Fri",
-    "id": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/images/ubuntu-minimal-2404-noble-amd64-v20260817",
+    "id": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/images/ubuntu-2404-noble-amd64-v20260820",
     "imageStatus": "Available",
     "infraType": "",
     "isBasicGpuImage": false,
     "isBasicImage": true,
     "isGPUImage": false,
     "isKubernetesImage": false,
-    "name": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/images/ubuntu-minimal-2404-noble-amd64-v20260817",
+    "name": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/images/ubuntu-2404-noble-amd64-v20260820",
     "namespace": "system",
     "osArchitecture": "x86_64",
     "osDiskSizeGB": 10,
     "osDiskType": "NA",
-    "osDistribution": "Canonical, Ubuntu, 24.04 LTS Minimal, amd64 noble minimal image built on 2026-08-17",
+    "osDistribution": "Canonical, Ubuntu, 24.04 LTS, amd64 noble image built on 2026-08-20",
     "osPlatform": "Linux/UNIX",
     "osType": "Ubuntu 24.04",
     "providerName": "gcp",
@@ -197,14 +197,14 @@
     "sourceCspImageName": "",
     "sourceNodeUid": "",
     "systemLabel": "",
-    "uid": "tbljac0fg9pr918114et"
+    "uid": "tbs76r4cga1lqjhvc013"
   },
-  "imageId": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/images/ubuntu-minimal-2404-noble-amd64-v20260817",
+  "imageId": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/images/ubuntu-2404-noble-amd64-v20260820",
   "imageValidation": {
-    "cspResourceId": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/images/ubuntu-minimal-2404-noble-amd64-v20260817",
+    "cspResourceId": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/images/ubuntu-2404-noble-amd64-v20260820",
     "isAvailable": true,
-    "resourceId": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/images/ubuntu-minimal-2404-noble-amd64-v20260817",
-    "resourceName": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/images/ubuntu-minimal-2404-noble-amd64-v20260817",
+    "resourceId": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/images/ubuntu-2404-noble-amd64-v20260820",
+    "resourceName": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/images/ubuntu-2404-noble-amd64-v20260820",
     "status": "Available"
   },
   "isValid": true,
@@ -305,12 +305,12 @@
     "status": "Available"
   },
   "status": "OK",
-  "suggestedZone": "us-central1-b"
+  "suggestedZone": "us-central1-a"
 }
 ```
 
 ### 2. Tumblebug POST /resources/vNet (Create VNet & Subnets) [✅ SUCCESS]
-- **Duration:** 26.473s
+- **Duration:** 27.836s
 - **Request URL:** `http://localhost:1323/tumblebug/ns/default/resources/vNet`
 ```json
 // Request Body
@@ -335,19 +335,19 @@
   "cidrBlock": "10.2.0.0/16",
   "conditions": [
     {
-      "lastTransitionTime": "2026-09-08T01:32:08Z",
+      "lastTransitionTime": "2026-09-08T05:59:12Z",
       "reason": "Available",
       "status": "True",
       "type": "Ready"
     },
     {
-      "lastTransitionTime": "2026-09-08T01:32:08Z",
+      "lastTransitionTime": "2026-09-08T05:59:12Z",
       "reason": "Available",
       "status": "True",
       "type": "Synced"
     },
     {
-      "lastTransitionTime": "2026-09-08T01:32:08Z",
+      "lastTransitionTime": "2026-09-08T05:59:12Z",
       "reason": "AllReady",
       "status": "True",
       "type": "ChildrenReady"
@@ -384,8 +384,8 @@
     "verified": true
   },
   "connectionName": "gcp-us-central1",
-  "cspResourceId": "tbdhatv48245si6evr8k",
-  "cspResourceName": "tbdhatv48245si6evr8k",
+  "cspResourceId": "tb50r7ici4ev23j27pr0",
+  "cspResourceName": "tb50r7ici4ev23j27pr0",
   "description": "Pre-requisite VNet for CM-Beetle RDBMS test",
   "id": "test-rdbms-vnet-gcp",
   "isAutoGenerated": false,
@@ -396,7 +396,7 @@
     },
     {
       "key": "CreationTimestamp",
-      "value": "2026-09-07T18:31:43.471-07:00"
+      "value": "2026-09-07T22:58:46.976-07:00"
     },
     {
       "key": "EnableUlaInternalIpv6",
@@ -404,7 +404,7 @@
     },
     {
       "key": "Id",
-      "value": "7457596897276124048"
+      "value": "2019343241617480441"
     },
     {
       "key": "Kind",
@@ -416,7 +416,7 @@
     },
     {
       "key": "Name",
-      "value": "tbdhatv48245si6evr8k"
+      "value": "tb50r7ici4ev23j27pr0"
     },
     {
       "key": "NetworkFirewallPolicyEnforcementOrder",
@@ -428,15 +428,15 @@
     },
     {
       "key": "SelfLink",
-      "value": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/networks/tbdhatv48245si6evr8k"
+      "value": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/networks/tb50r7ici4ev23j27pr0"
     },
     {
       "key": "SelfLinkWithId",
-      "value": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/networks/7457596897276124048"
+      "value": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/networks/2019343241617480441"
     },
     {
       "key": "Subnetworks",
-      "value": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/regions/us-central1/subnetworks/tbvp2k698vd27tqi5rg0"
+      "value": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/regions/us-central1/subnetworks/tbce7o21q9arcqgjvj59"
     }
   ],
   "name": "test-rdbms-vnet-gcp",
@@ -446,13 +446,13 @@
     {
       "conditions": [
         {
-          "lastTransitionTime": "2026-09-08T01:32:08Z",
+          "lastTransitionTime": "2026-09-08T05:59:12Z",
           "reason": "Available",
           "status": "True",
           "type": "Ready"
         },
         {
-          "lastTransitionTime": "2026-09-08T01:32:08Z",
+          "lastTransitionTime": "2026-09-08T05:59:12Z",
           "reason": "Available",
           "status": "True",
           "type": "Synced"
@@ -489,10 +489,10 @@
         "verified": true
       },
       "connectionName": "gcp-us-central1",
-      "cspResourceId": "tbvp2k698vd27tqi5rg0",
-      "cspResourceName": "tbvp2k698vd27tqi5rg0",
-      "cspVNetId": "tbdhatv48245si6evr8k",
-      "cspVNetName": "tbdhatv48245si6evr8k",
+      "cspResourceId": "tbce7o21q9arcqgjvj59",
+      "cspResourceName": "tbce7o21q9arcqgjvj59",
+      "cspVNetId": "tb50r7ici4ev23j27pr0",
+      "cspVNetName": "tb50r7ici4ev23j27pr0",
       "description": "",
       "id": "subnet-1",
       "ipv4_CIDR": "10.2.1.0/24",
@@ -503,7 +503,7 @@
         },
         {
           "key": "CreationTimestamp",
-          "value": "2026-09-07T18:31:55.791-07:00"
+          "value": "2026-09-07T22:58:59.839-07:00"
         },
         {
           "key": "EnableFlowLogs",
@@ -511,7 +511,7 @@
         },
         {
           "key": "Fingerprint",
-          "value": "fJxwwWfohVA="
+          "value": "a6A0KFI9po0="
         },
         {
           "key": "GatewayAddress",
@@ -519,7 +519,7 @@
         },
         {
           "key": "Id",
-          "value": "7851289890438437732"
+          "value": "6906920749205953228"
         },
         {
           "key": "IpCidrRange",
@@ -531,11 +531,11 @@
         },
         {
           "key": "Name",
-          "value": "tbvp2k698vd27tqi5rg0"
+          "value": "tbce7o21q9arcqgjvj59"
         },
         {
           "key": "Network",
-          "value": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/networks/tbdhatv48245si6evr8k"
+          "value": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/networks/tb50r7ici4ev23j27pr0"
         },
         {
           "key": "PrivateIpGoogleAccess",
@@ -555,7 +555,7 @@
         },
         {
           "key": "SelfLink",
-          "value": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/regions/us-central1/subnetworks/tbvp2k698vd27tqi5rg0"
+          "value": "https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/regions/us-central1/subnetworks/tbce7o21q9arcqgjvj59"
         },
         {
           "key": "StackType",
@@ -567,23 +567,23 @@
         },
         {
           "key": "subnet",
-          "value": "tbvp2k698vd27tqi5rg0"
+          "value": "tbce7o21q9arcqgjvj59"
         }
       ],
       "name": "subnet-1",
       "resourceType": "subnet",
       "status": "Available",
-      "uid": "tbvp2k698vd27tqi5rg0",
+      "uid": "tbce7o21q9arcqgjvj59",
       "zone": "us-central1-a"
     }
   ],
   "systemLabel": "",
-  "uid": "tbdhatv48245si6evr8k"
+  "uid": "tb50r7ici4ev23j27pr0"
 }
 ```
 
 ### 3. Tumblebug POST /resources/securityGroup (Create SecurityGroup) [✅ SUCCESS]
-- **Duration:** 33.972s
+- **Duration:** 30.006s
 - **Request URL:** `http://localhost:1323/tumblebug/ns/default/resources/securityGroup`
 ```json
 // Request Body
@@ -643,8 +643,8 @@
     "verified": true
   },
   "connectionName": "gcp-us-central1",
-  "cspResourceId": "tb295v640jrdqjcgdoog",
-  "cspResourceName": "tb295v640jrdqjcgdoog",
+  "cspResourceId": "tbg3dukutg7m3vdcn3cs",
+  "cspResourceName": "tbg3dukutg7m3vdcn3cs",
   "description": "Pre-requisite SecurityGroup for CM-Beetle RDBMS test",
   "firewallRules": [
     {
@@ -671,19 +671,19 @@
   "keyValueList": [
     {
       "key": "Items",
-      "value": "{allowed:[{IPProtocol:tcp,ports:[3306]}],creationTimestamp:2026-09-07T18:32:24.493-07:00,direction:INGRESS,id:6527963891915479879,kind:compute#firewall,logConfig:{},name:tb295v640jrdqjcgdoog-i-001,network:https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/networks/tbdhatv48245si6evr8k,priority:1000,selfLink:https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/firewalls/tb295v640jrdqjcgdoog-i-001,sourceRanges:[0.0.0.0/0],targetTags:[tb295v640jrdqjcgdoog]}; {allowed:[{IPProtocol:tcp,ports:[22]}],creationTimestamp:2026-09-07T18:32:30.972-07:00,direction:INGRESS,id:1355187267243793217,kind:compute#firewall,logConfig:{},name:tb295v640jrdqjcgdoog-i-002,network:https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/networks/tbdhatv48245si6evr8k,priority:1000,selfLink:https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/firewalls/tb295v640jrdqjcgdoog-i-002,sourceRanges:[0.0.0.0/0],targetTags:[tb295v640jrdqjcgdoog]}; {creationTimestamp:2026-09-07T18:32:07.579-07:00,denied:[{IPProtocol:all}],destinationRanges:[0.0.0.0/0],direction:EGRESS,id:8433617383384603512,kind:compute#firewall,logConfig:{},name:tb295v640jrdqjcgdoog-o-001,network:https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/networks/tbdhatv48245si6evr8k,priority:65535,selfLink:https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/firewalls/tb295v640jrdqjcgdoog-o-001,targetTags:[tb295v640jrdqjcgdoog]}; {allowed:[{IPProtocol:all}],creationTimestamp:2026-09-07T18:32:14.053-07:00,destinationRanges:[0.0.0.0/0],direction:EGRESS,id:4993194755034897266,kind:compute#firewall,logConfig:{},name:tb295v640jrdqjcgdoog-o-002,network:https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/networks/tbdhatv48245si6evr8k,priority:1000,selfLink:https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/firewalls/tb295v640jrdqjcgdoog-o-002,targetTags:[tb295v640jrdqjcgdoog]}"
+      "value": "{allowed:[{IPProtocol:tcp,ports:[3306]}],creationTimestamp:2026-09-07T22:59:25.064-07:00,direction:INGRESS,id:3739077833749830355,kind:compute#firewall,logConfig:{},name:tbg3dukutg7m3vdcn3cs-i-001,network:https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/networks/tb50r7ici4ev23j27pr0,priority:1000,selfLink:https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/firewalls/tbg3dukutg7m3vdcn3cs-i-001,sourceRanges:[0.0.0.0/0],targetTags:[tbg3dukutg7m3vdcn3cs]}; {allowed:[{IPProtocol:tcp,ports:[22]}],creationTimestamp:2026-09-07T22:59:31.795-07:00,direction:INGRESS,id:8886494158302354092,kind:compute#firewall,logConfig:{},name:tbg3dukutg7m3vdcn3cs-i-002,network:https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/networks/tb50r7ici4ev23j27pr0,priority:1000,selfLink:https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/firewalls/tbg3dukutg7m3vdcn3cs-i-002,sourceRanges:[0.0.0.0/0],targetTags:[tbg3dukutg7m3vdcn3cs]}; {creationTimestamp:2026-09-07T22:59:11.462-07:00,denied:[{IPProtocol:all}],destinationRanges:[0.0.0.0/0],direction:EGRESS,id:327428170568571584,kind:compute#firewall,logConfig:{},name:tbg3dukutg7m3vdcn3cs-o-001,network:https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/networks/tb50r7ici4ev23j27pr0,priority:65535,selfLink:https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/firewalls/tbg3dukutg7m3vdcn3cs-o-001,targetTags:[tbg3dukutg7m3vdcn3cs]}; {allowed:[{IPProtocol:all}],creationTimestamp:2026-09-07T22:59:18.412-07:00,destinationRanges:[0.0.0.0/0],direction:EGRESS,id:6340768197585803993,kind:compute#firewall,logConfig:{},name:tbg3dukutg7m3vdcn3cs-o-002,network:https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/networks/tb50r7ici4ev23j27pr0,priority:1000,selfLink:https://www.googleapis.com/compute/v1/projects/GCP_PROJECT_ID/global/firewalls/tbg3dukutg7m3vdcn3cs-o-002,targetTags:[tbg3dukutg7m3vdcn3cs]}"
     }
   ],
   "name": "test-rdbms-sg-gcp",
   "resourceType": "securityGroup",
   "systemLabel": "",
-  "uid": "tb295v640jrdqjcgdoog",
+  "uid": "tbg3dukutg7m3vdcn3cs",
   "vNetId": "test-rdbms-vnet-gcp"
 }
 ```
 
 ### 4. Beetle GET RDBMS Support [✅ SUCCESS]
-- **Duration:** 5ms
+- **Duration:** 6ms
 - **Request URL:** `http://localhost:8056/beetle/recommendation/middleware/rdbms/support?providerName=gcp`
 ```json
 // Response Body
@@ -704,7 +704,7 @@
 ```
 
 ### 5. Beetle GET RDBMS Capability [✅ SUCCESS]
-- **Duration:** 1.282s
+- **Duration:** 1.762s
 - **Request URL:** `http://localhost:8056/beetle/recommendation/middleware/rdbms/capability?connectionName=gcp-us-central1&dbEngine=mysql`
 ```json
 // Response Body
@@ -1228,38 +1228,66 @@
 ```
 
 ### 6. Beetle POST Recommend RDBMS [✅ SUCCESS]
-- **Duration:** 7ms
+- **Duration:** 5ms
 - **Request URL:** `http://localhost:8056/beetle/recommendation/middleware/rdbms`
 ```json
 // Request Body
 {
+  "autoFillSourceDefaults": true,
   "desiredCloud": {
     "csp": "gcp",
     "region": "us-central1"
   },
   "sourceRDBMSInstances": [
     {
-      "backupRetentionDays": 7,
-      "databases": [
+      "dbEngine": {
+        "engine": "mysql",
+        "engineVersion": "8.0",
+        "port": 3306,
+        "role": "primary"
+      },
+      "dbNode": {
+        "cpu": {
+          "cores": 2,
+          "cpus": 1,
+          "maxSpeed": 2.4,
+          "threads": 2
+        },
+        "dataDisks": [
+          {
+            "label": "/data",
+            "totalSize": 50,
+            "type": "SSD"
+          }
+        ],
+        "hostname": "db-server-01",
+        "machineId": "node-550e8400-e29b-41d4-a716-446655440000",
+        "memory": {
+          "totalSize": 4
+        },
+        "rootDisk": {
+          "label": "/",
+          "totalSize": 50,
+          "type": "SSD"
+        }
+      },
+      "description": "Production database instance discovered from on-premise node",
+      "displayName": "Source MySQL 01",
+      "innerDatabases": [
         {
           "characterSet": "utf8mb4",
           "collation": "utf8mb4_unicode_ci",
           "databaseName": "sampledb"
         }
-      ],
-      "engine": "mysql",
-      "engineVersion": "8.0",
-      "instanceName": "source-mysql-01",
-      "iops": 3000,
-      "machineId": "node-550e8400-e29b-41d4-a716-446655440000",
-      "memoryMb": 4096,
-      "port": 3306,
-      "publicAccess": true,
-      "storageSizeGb": 100,
-      "storageType": "SSD",
-      "vcpu": 2
+      ]
     }
-  ]
+  ],
+  "targetPreferences": {
+    "adminUserName": "admin",
+    "backupRetentionDays": 7,
+    "highAvailability": false,
+    "publicAccess": true
+  }
 }
 ```
 ```json
@@ -1290,7 +1318,7 @@
       "securityGroupIds": [
         "test-rdbms-sg-gcp"
       ],
-      "sourceInstanceName": "source-mysql-01",
+      "sourceInstanceName": "Source MySQL 01",
       "sourceMachineId": "node-550e8400-e29b-41d4-a716-446655440000",
       "storageSize": 100,
       "storageType": "PD_SSD",
@@ -1304,7 +1332,7 @@
 ```
 
 ### 7. Beetle POST Validate RDBMS Recommendation [✅ SUCCESS]
-- **Duration:** 14ms
+- **Duration:** 19ms
 - **Request URL:** `http://localhost:8056/beetle/recommendation/middleware/rdbms/validate?nsId=default`
 ```json
 // Request Body
@@ -1357,7 +1385,7 @@
 ```
 
 ### 8. Beetle POST Migrate RDBMS (Provisioning) [✅ SUCCESS]
-- **Duration:** 3m33.111s
+- **Duration:** 3m32.851s
 - **Request URL:** `http://localhost:8056/beetle/migration/middleware/ns/default/rdbms?nameSeed=test`
 ```json
 // Request Body
@@ -1387,7 +1415,7 @@
       "securityGroupIds": [
         "test-rdbms-sg-gcp"
       ],
-      "sourceInstanceName": "source-mysql-01",
+      "sourceInstanceName": "Source MySQL 01",
       "sourceMachineId": "node-550e8400-e29b-41d4-a716-446655440000",
       "storageSize": 100,
       "storageType": "PD_SSD",
@@ -1408,23 +1436,23 @@
 ```
 
 ### 9. Beetle GET RDBMS Info [✅ SUCCESS]
-- **Duration:** 1.335s
+- **Duration:** 1.281s
 - **Request URL:** `http://localhost:8056/beetle/migration/middleware/ns/default/rdbms/test-rdbms-gcp`
 ```json
 // Response Body
 {
   "adminUserName": "admin",
   "backupRetentionDays": 7,
-  "backupTime": "00:00",
+  "backupTime": "02:00",
   "conditions": [
     {
-      "lastTransitionTime": "2026-09-08T01:35:49Z",
+      "lastTransitionTime": "2026-09-08T06:02:49Z",
       "reason": "Available",
       "status": "True",
       "type": "Ready"
     },
     {
-      "lastTransitionTime": "2026-09-08T01:35:49Z",
+      "lastTransitionTime": "2026-09-08T06:02:49Z",
       "reason": "Available",
       "status": "True",
       "type": "Synced"
@@ -1461,16 +1489,16 @@
     "verified": true
   },
   "connectionName": "gcp-us-central1",
-  "cspResourceId": "tbvajigo0eprcvoca9pk",
-  "cspResourceName": "tbvajigo0eprcvoca9pk",
+  "cspResourceId": "tbltdbo0ttl4j1rgj5k2",
+  "cspResourceName": "tbltdbo0ttl4j1rgj5k2",
   "dbEngine": "mysql",
   "dbEngineVersion": "8.0",
   "dbInstanceSpec": "db-n1-standard-2",
   "dbInstanceType": "ZONAL",
   "deletionProtection": false,
-  "description": "Migrated by CM-Beetle from source instance source-mysql-01",
+  "description": "Migrated by CM-Beetle from source instance Source MySQL 01",
   "encryption": true,
-  "endpoint": "34.68.70.53:3306",
+  "endpoint": "34.63.125.230:3306",
   "highAvailability": false,
   "id": "test-rdbms-gcp",
   "name": "test-rdbms-gcp",
@@ -1485,13 +1513,13 @@
   "subnetIds": [
     "subnet-1"
   ],
-  "uid": "tbvajigo0eprcvoca9pk",
+  "uid": "tbltdbo0ttl4j1rgj5k2",
   "vNetId": "test-rdbms-vnet-gcp"
 }
 ```
 
 ### 10. Beetle GET RDBMS List [✅ SUCCESS]
-- **Duration:** 6ms
+- **Duration:** 16ms
 - **Request URL:** `http://localhost:8056/beetle/migration/middleware/ns/default/rdbms`
 ```json
 // Response Body
@@ -1500,17 +1528,17 @@
     {
       "adminUserName": "root",
       "backupRetentionDays": 7,
-      "backupTime": "19:02-19:32",
+      "backupTime": "16:27-16:57",
       "conditions": [
         {
-          "lastTransitionTime": "2026-09-08T01:32:21Z",
+          "lastTransitionTime": "2026-09-08T05:59:31Z",
           "message": "RDBMS creation in progress",
           "reason": "Creating",
           "status": "False",
           "type": "Ready"
         },
         {
-          "lastTransitionTime": "2026-09-08T01:32:21Z",
+          "lastTransitionTime": "2026-09-08T05:59:31Z",
           "reason": "Creating",
           "status": "False",
           "type": "Synced"
@@ -1547,14 +1575,14 @@
         "verified": true
       },
       "connectionName": "aws-ap-northeast-2",
-      "cspResourceId": "tblunavhu1of0ntjighq",
-      "cspResourceName": "tblunavhu1of0ntjighq",
+      "cspResourceId": "tb5ump4hlcqgs0tv91mk",
+      "cspResourceName": "tb5ump4hlcqgs0tv91mk",
       "dbEngine": "mysql",
       "dbEngineVersion": "8.0.46",
       "dbInstanceSpec": "db.t3.medium",
       "dbInstanceType": "Primary",
       "deletionProtection": false,
-      "description": "Migrated by CM-Beetle from source instance source-mysql-01",
+      "description": "Migrated by CM-Beetle from source instance Source MySQL 01",
       "highAvailability": false,
       "id": "test-rdbms-aws",
       "iops": "3000",
@@ -1574,10 +1602,10 @@
       "tagList": [
         {
           "key": "Name",
-          "value": "tblunavhu1of0ntjighq"
+          "value": "tb5ump4hlcqgs0tv91mk"
         }
       ],
-      "uid": "tblunavhu1of0ntjighq",
+      "uid": "tb5ump4hlcqgs0tv91mk",
       "vNetId": "test-rdbms-vnet-aws"
     },
     {
@@ -1585,14 +1613,14 @@
       "backupRetentionDays": 7,
       "conditions": [
         {
-          "lastTransitionTime": "2026-09-08T01:32:05Z",
+          "lastTransitionTime": "2026-09-08T05:59:13Z",
           "message": "RDBMS creation in progress",
           "reason": "Creating",
           "status": "False",
           "type": "Ready"
         },
         {
-          "lastTransitionTime": "2026-09-08T01:32:05Z",
+          "lastTransitionTime": "2026-09-08T05:59:13Z",
           "reason": "Creating",
           "status": "False",
           "type": "Synced"
@@ -1632,7 +1660,7 @@
       "dbEngineVersion": "8.0.21",
       "dbInstanceSpec": "Standard_B2s",
       "deletionProtection": false,
-      "description": "Migrated by CM-Beetle from source instance source-mysql-01",
+      "description": "Migrated by CM-Beetle from source instance Source MySQL 01",
       "highAvailability": false,
       "id": "test-rdbms-azure",
       "name": "test-rdbms-azure",
@@ -1646,22 +1674,22 @@
       "subnetIds": [
         "subnet-1"
       ],
-      "uid": "tbtbfiifbfn8uvco6qhr",
+      "uid": "tbchcn2bjeln1kpo36pn",
       "vNetId": "test-rdbms-vnet-azure"
     },
     {
       "adminUserName": "admin",
       "backupRetentionDays": 7,
-      "backupTime": "00:00",
+      "backupTime": "02:00",
       "conditions": [
         {
-          "lastTransitionTime": "2026-09-08T01:35:49Z",
+          "lastTransitionTime": "2026-09-08T06:02:49Z",
           "reason": "Available",
           "status": "True",
           "type": "Ready"
         },
         {
-          "lastTransitionTime": "2026-09-08T01:35:49Z",
+          "lastTransitionTime": "2026-09-08T06:02:49Z",
           "reason": "Available",
           "status": "True",
           "type": "Synced"
@@ -1698,16 +1726,16 @@
         "verified": true
       },
       "connectionName": "gcp-us-central1",
-      "cspResourceId": "tbvajigo0eprcvoca9pk",
-      "cspResourceName": "tbvajigo0eprcvoca9pk",
+      "cspResourceId": "tbltdbo0ttl4j1rgj5k2",
+      "cspResourceName": "tbltdbo0ttl4j1rgj5k2",
       "dbEngine": "mysql",
       "dbEngineVersion": "8.0",
       "dbInstanceSpec": "db-n1-standard-2",
       "dbInstanceType": "ZONAL",
       "deletionProtection": false,
-      "description": "Migrated by CM-Beetle from source instance source-mysql-01",
+      "description": "Migrated by CM-Beetle from source instance Source MySQL 01",
       "encryption": true,
-      "endpoint": "34.68.70.53:3306",
+      "endpoint": "34.63.125.230:3306",
       "highAvailability": false,
       "id": "test-rdbms-gcp",
       "name": "test-rdbms-gcp",
@@ -1722,7 +1750,7 @@
       "subnetIds": [
         "subnet-1"
       ],
-      "uid": "tbvajigo0eprcvoca9pk",
+      "uid": "tbltdbo0ttl4j1rgj5k2",
       "vNetId": "test-rdbms-vnet-gcp"
     },
     {
@@ -1731,14 +1759,14 @@
       "backupTime": "00:00",
       "conditions": [
         {
-          "lastTransitionTime": "2026-09-08T01:32:51Z",
+          "lastTransitionTime": "2026-09-08T05:59:51Z",
           "message": "RDBMS creation in progress",
           "reason": "Creating",
           "status": "False",
           "type": "Ready"
         },
         {
-          "lastTransitionTime": "2026-09-08T01:32:51Z",
+          "lastTransitionTime": "2026-09-08T05:59:51Z",
           "reason": "Creating",
           "status": "False",
           "type": "Synced"
@@ -1773,14 +1801,14 @@
         "verified": true
       },
       "connectionName": "ncp-kr",
-      "cspResourceId": "145107438",
-      "cspResourceName": "tb7k7td81l8pt2p0nhml",
+      "cspResourceId": "145118098",
+      "cspResourceName": "tbnpk2idgnunp4jjh2e0",
       "dbEngine": "mysql",
       "dbEngineVersion": "MYSQL8.0.45",
       "dbInstanceSpec": "SVR.VDBAS.AMD.HICPU.C002.M004.NET.SSD.B050.G003",
       "dbInstanceType": "Stand Alone",
       "deletionProtection": false,
-      "description": "Migrated by CM-Beetle from source instance source-mysql-01",
+      "description": "Migrated by CM-Beetle from source instance Source MySQL 01",
       "endpoint": ":3306",
       "highAvailability": false,
       "id": "test-rdbms-ncp",
@@ -1796,7 +1824,7 @@
       "subnetIds": [
         "subnet-1"
       ],
-      "uid": "tb7k7td81l8pt2p0nhml",
+      "uid": "tbnpk2idgnunp4jjh2e0",
       "vNetId": "test-rdbms-vnet-ncp"
     },
     {
@@ -1804,14 +1832,14 @@
       "backupRetentionDays": 7,
       "conditions": [
         {
-          "lastTransitionTime": "2026-09-08T01:32:23Z",
+          "lastTransitionTime": "2026-09-08T05:59:32Z",
           "message": "RDBMS creation in progress",
           "reason": "Creating",
           "status": "False",
           "type": "Ready"
         },
         {
-          "lastTransitionTime": "2026-09-08T01:32:23Z",
+          "lastTransitionTime": "2026-09-08T05:59:32Z",
           "reason": "Creating",
           "status": "False",
           "type": "Synced"
@@ -1850,7 +1878,7 @@
       "dbEngineVersion": "MYSQL_V8046",
       "dbInstanceSpec": "m2.c2m4",
       "deletionProtection": false,
-      "description": "Migrated by CM-Beetle from source instance source-mysql-01",
+      "description": "Migrated by CM-Beetle from source instance Source MySQL 01",
       "highAvailability": false,
       "id": "test-rdbms-nhn",
       "name": "test-rdbms-nhn",
@@ -1866,7 +1894,7 @@
       "subnetIds": [
         "subnet-1"
       ],
-      "uid": "tbb3k63114huhljjepms",
+      "uid": "tb9bv3hhiu965gpsfni4",
       "vNetId": "test-rdbms-vnet-nhn"
     },
     {
@@ -1874,14 +1902,14 @@
       "backupRetentionDays": 7,
       "conditions": [
         {
-          "lastTransitionTime": "2026-09-08T01:32:28Z",
+          "lastTransitionTime": "2026-09-08T05:59:35Z",
           "message": "RDBMS creation in progress",
           "reason": "Creating",
           "status": "False",
           "type": "Ready"
         },
         {
-          "lastTransitionTime": "2026-09-08T01:32:28Z",
+          "lastTransitionTime": "2026-09-08T05:59:35Z",
           "reason": "Creating",
           "status": "False",
           "type": "Synced"
@@ -1920,7 +1948,7 @@
       "dbEngineVersion": "8.0",
       "dbInstanceSpec": "4000",
       "deletionProtection": false,
-      "description": "Migrated by CM-Beetle from source instance source-mysql-01",
+      "description": "Migrated by CM-Beetle from source instance Source MySQL 01",
       "highAvailability": false,
       "id": "test-rdbms-tencent",
       "name": "test-rdbms-tencent",
@@ -1931,11 +1959,11 @@
       ],
       "status": "Creating",
       "storageSize": 100,
-      "storageType": "local_ssd",
+      "storageType": "CLOUD_HSSD",
       "subnetIds": [
         "subnet-1"
       ],
-      "uid": "tb7s8uhr7rhep52rtc7p",
+      "uid": "tbjptd3rmcub27i8pke7",
       "vNetId": "test-rdbms-vnet-tencent"
     }
   ]
@@ -1943,7 +1971,7 @@
 ```
 
 ### 11. Beetle POST Create Logical Database [✅ SUCCESS]
-- **Duration:** 2.439s
+- **Duration:** 2.171s
 - **Request URL:** `http://localhost:8056/beetle/migration/middleware/ns/default/rdbms/test-rdbms-gcp/database`
 ```json
 // Request Body
@@ -1961,7 +1989,7 @@
 ```
 
 ### 12. Beetle GET List Logical Databases [✅ SUCCESS]
-- **Duration:** 3.121s
+- **Duration:** 2.841s
 - **Request URL:** `http://localhost:8056/beetle/migration/middleware/ns/default/rdbms/test-rdbms-gcp/database`
 ```json
 // Response Body
@@ -1978,7 +2006,7 @@
 ```
 
 ### 13. Data I/O Test (External Remote) [✅ SUCCESS]
-- **Duration:** 191ms
+- **Duration:** 224ms
 ```json
 // Response Body
 {
@@ -1987,7 +2015,7 @@
 ```
 
 ### 14. Data I/O Test (Internal VPC VM) [✅ SUCCESS]
-- **Duration:** 4m46.714s
+- **Duration:** 5m2.901s
 ```json
 // Response Body
 {
@@ -1996,16 +2024,16 @@
 ```
 
 ### 15. Beetle DELETE Logical Database [✅ SUCCESS]
-- **Duration:** 13.991s
+- **Duration:** 14.003s
 - **Request URL:** `http://localhost:8056/beetle/migration/middleware/ns/default/rdbms/test-rdbms-gcp/database/sampledb`
 
 ### 16. Beetle DELETE RDBMS Instance [✅ SUCCESS]
-- **Duration:** 2m44.398s
+- **Duration:** 2m27.624s
 - **Request URL:** `http://localhost:8056/beetle/migration/middleware/ns/default/rdbms/test-rdbms-gcp?option=force`
 
 ### 17. Tumblebug DELETE /resources/securityGroup [✅ SUCCESS]
-- **Duration:** 37.891s
+- **Duration:** 28.36s
 
 ### 18. Tumblebug DELETE /resources/vNet [✅ SUCCESS]
-- **Duration:** 1m51.885s
+- **Duration:** 1m43.561s
 

@@ -2852,6 +2852,9 @@ definitions:
     type: object
   controller.RecommendRDBMSRequest:
     properties:
+      autoFillSourceDefaults:
+        example: true
+        type: boolean
       desiredCloud:
         $ref: '#/definitions/rdbmsmodel.CloudProperty'
       sourceRDBMSInstances:
@@ -2859,6 +2862,8 @@ definitions:
           $ref: '#/definitions/rdbmsmodel.SourceRDBMSProperty'
         minItems: 1
         type: array
+      targetPreferences:
+        $ref: '#/definitions/recommendation.TargetPreferences'
     required:
     - desiredCloud
     - sourceRDBMSInstances
@@ -5383,6 +5388,128 @@ definitions:
       verified:
         type: boolean
     type: object
+  rdbmsmodel.CpuProperty:
+    properties:
+      architecture:
+        example: x86_64
+        type: string
+      cores:
+        description: Number of physical cores per CPU
+        example: 2
+        type: integer
+      cpus:
+        description: Number of physical CPUs (sockets)
+        example: 1
+        type: integer
+      maxSpeed:
+        description: Maximum speed in GHz
+        example: 3.6
+        type: number
+      model:
+        example: Intel(R) Xeon(R) Gold 6140 CPU @ 2.30GHz
+        type: string
+      threads:
+        description: Number of logical CPUs (threads) per CPU
+        example: 2
+        type: integer
+      vendor:
+        example: GenuineIntel
+        type: string
+    required:
+    - cores
+    - cpus
+    - threads
+    type: object
+  rdbmsmodel.DBEngineProperty:
+    properties:
+      engine:
+        description: '"mysql", "mariadb", "postgresql"'
+        example: mysql
+        type: string
+      engineVersion:
+        description: e.g. "8.0", "10.5"
+        example: "8.0"
+        type: string
+      port:
+        description: 'DB port (default: 3306)'
+        example: 3306
+        type: integer
+      role:
+        description: '"primary" (writer), "replica" (reader), "standalone"'
+        example: primary
+        type: string
+    required:
+    - engine
+    - engineVersion
+    type: object
+  rdbmsmodel.DBNodeProperty:
+    properties:
+      cpu:
+        $ref: '#/definitions/rdbmsmodel.CpuProperty'
+      dataDisks:
+        items:
+          $ref: '#/definitions/rdbmsmodel.DiskProperty'
+        type: array
+      hostname:
+        example: db-node-01
+        type: string
+      machineId:
+        example: node-550e8400-e29b-41d4-a716-446655440000
+        type: string
+      memory:
+        $ref: '#/definitions/rdbmsmodel.MemoryProperty'
+      rootDisk:
+        $ref: '#/definitions/rdbmsmodel.DiskProperty'
+    required:
+    - cpu
+    - memory
+    type: object
+  rdbmsmodel.DiskProperty:
+    properties:
+      available:
+        description: Unit GB
+        type: integer
+      label:
+        example: /
+        type: string
+      totalSize:
+        description: Unit GB
+        example: 100
+        type: integer
+      type:
+        description: SSD, HDD
+        example: SSD
+        type: string
+      used:
+        description: Unit GB
+        type: integer
+    required:
+    - totalSize
+    - type
+    type: object
+  rdbmsmodel.InnerDatabaseProperty:
+    properties:
+      characterSet:
+        example: utf8mb4
+        type: string
+      collation:
+        example: utf8mb4_unicode_ci
+        type: string
+      databaseName:
+        example: sampledb
+        type: string
+      rowCount:
+        example: 150000
+        type: integer
+      sizeMb:
+        example: 512.5
+        type: number
+      tableCount:
+        example: 24
+        type: integer
+    required:
+    - databaseName
+    type: object
   rdbmsmodel.KeyValue:
     properties:
       key:
@@ -5398,6 +5525,24 @@ definitions:
         type: number
       longitude:
         type: number
+    type: object
+  rdbmsmodel.MemoryProperty:
+    properties:
+      available:
+        description: Unit GiB
+        type: integer
+      totalSize:
+        description: Unit GiB
+        example: 4
+        type: integer
+      type:
+        example: DDR4
+        type: string
+      used:
+        description: Unit GiB
+        type: integer
+    required:
+    - totalSize
     type: object
   rdbmsmodel.RDBMSAdminUserNameRequirement:
     properties:
@@ -5887,98 +6032,36 @@ definitions:
       assignedZone:
         type: string
     type: object
-  rdbmsmodel.SourceDatabaseProperty:
-    properties:
-      characterSet:
-        example: utf8mb4
-        type: string
-      collation:
-        example: utf8mb4_unicode_ci
-        type: string
-      databaseName:
-        example: order_db
-        type: string
-      sizeMb:
-        example: 512.5
-        type: number
-      tableCount:
-        example: 24
-        type: integer
-    required:
-    - databaseName
-    type: object
   rdbmsmodel.SourceRDBMSProperty:
     properties:
-      backupRetentionDays:
-        description: Backup & Policy
-        example: 7
-        type: integer
-      databases:
-        description: Logical Databases (Inner DBs)
+      dbEngine:
+        allOf:
+        - $ref: '#/definitions/rdbmsmodel.DBEngineProperty'
+        description: DBEngine represents the database engine software (type, version,
+          port, role, HA).
+      dbNode:
+        allOf:
+        - $ref: '#/definitions/rdbmsmodel.DBNodeProperty'
+        description: DBNode represents the underlying host/server infrastructure specs
+          (CPU, Memory, Disks).
+      description:
+        description: Description is an optional free-form note or business purpose.
+        example: Production billing service master database
+        type: string
+      displayName:
+        description: DisplayName is an optional human-friendly alias or cloud DB identifier
+          (e.g. "billing-db").
+        example: billing-db
+        type: string
+      innerDatabases:
+        description: InnerDatabases lists the logical tenant databases residing inside
+          this RDBMS instance.
         items:
-          $ref: '#/definitions/rdbmsmodel.SourceDatabaseProperty'
+          $ref: '#/definitions/rdbmsmodel.InnerDatabaseProperty'
         type: array
-      engine:
-        description: Engine & Version
-        example: mysql
-        type: string
-      engineVersion:
-        description: e.g. "8.0", "10.5"
-        example: "8.0"
-        type: string
-      highAvailability:
-        description: HA / Replication mode
-        example: false
-        type: boolean
-      instanceName:
-        description: InstanceName is the identifier for the DB instance.
-        example: prod-mysql-01
-        type: string
-      iops:
-        description: Observed IOPS
-        example: 3000
-        type: integer
-      machineId:
-        description: MachineId is the optional host machine identifier (e.g., node
-          UUID) for infra traceability.
-        example: 550e8400-e29b-41d4-a716-446655440000
-        type: string
-      memoryMb:
-        description: Memory in MB
-        example: 8192
-        type: integer
-      nhnDBSGToAllowAllInbound:
-        description: 'NHN-specific: allow inbound 3306 from 0.0.0.0/0 on DB Security
-          Group'
-        example: false
-        type: boolean
-      port:
-        description: Network & Topology
-        example: 3306
-        type: integer
-      publicAccess:
-        description: External public access enabled
-        example: false
-        type: boolean
-      storageSizeGb:
-        description: Storage
-        example: 100
-        type: integer
-      storageType:
-        description: Storage type (e.g. SSD, HDD)
-        example: SSD
-        type: string
-      vcpu:
-        description: Compute & Memory
-        example: 4
-        type: integer
     required:
-    - engine
-    - engineVersion
-    - instanceName
-    - memoryMb
-    - storageSizeGb
-    - vcpu
+    - dbEngine
+    - dbNode
     type: object
   rdbmsmodel.StaticFieldNote:
     properties:
@@ -6062,7 +6145,7 @@ definitions:
     properties:
       adminUserName:
         description: Admin Credentials
-        example: cbuser
+        example: dbadmin
         type: string
       adminUserPassword:
         example: Password123!
@@ -6142,6 +6225,24 @@ definitions:
     - adminUserName
     - dbEngine
     - rdbmsName
+    type: object
+  recommendation.TargetPreferences:
+    properties:
+      adminUserName:
+        example: dbadmin
+        type: string
+      backupRetentionDays:
+        example: 7
+        type: integer
+      highAvailability:
+        example: false
+        type: boolean
+      nhnDBSGToAllowAllInbound:
+        example: false
+        type: boolean
+      publicAccess:
+        example: true
+        type: boolean
     type: object
   resource.RestGetAllSecurityGroupResponse:
     properties:

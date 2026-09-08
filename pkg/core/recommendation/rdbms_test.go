@@ -32,30 +32,20 @@ func TestValidateSourceRDBMS(t *testing.T) {
 			errContains: "at least one source RDBMS instance is required",
 		},
 		{
-			name: "Missing InstanceName",
-			sources: []rdbmsmodel.SourceRDBMSProperty{
-				{
-					InstanceName:  "  ",
-					Engine:        "mysql",
-					EngineVersion: "8.0",
-					Vcpu:          2,
-					MemoryMb:      4096,
-					StorageSizeGb: 50,
-				},
-			},
-			expectErr:   true,
-			errContains: "instanceName is required",
-		},
-		{
 			name: "Missing Engine",
 			sources: []rdbmsmodel.SourceRDBMSProperty{
 				{
-					InstanceName:  "db-01",
-					Engine:        "",
-					EngineVersion: "8.0",
-					Vcpu:          2,
-					MemoryMb:      4096,
-					StorageSizeGb: 50,
+					DisplayName: "db-01",
+					DBNode: rdbmsmodel.DBNodeProperty{
+						Hostname: "node-01",
+						CPU:      rdbmsmodel.CpuProperty{Threads: 2},
+						Memory:   rdbmsmodel.MemoryProperty{TotalSize: 4},
+						RootDisk: rdbmsmodel.DiskProperty{TotalSize: 50},
+					},
+					DBEngine: rdbmsmodel.DBEngineProperty{
+						Engine:        "",
+						EngineVersion: "8.0",
+					},
 				},
 			},
 			expectErr:   true,
@@ -65,12 +55,17 @@ func TestValidateSourceRDBMS(t *testing.T) {
 			name: "Missing EngineVersion",
 			sources: []rdbmsmodel.SourceRDBMSProperty{
 				{
-					InstanceName:  "db-01",
-					Engine:        "mysql",
-					EngineVersion: "  ",
-					Vcpu:          2,
-					MemoryMb:      4096,
-					StorageSizeGb: 50,
+					DisplayName: "db-01",
+					DBNode: rdbmsmodel.DBNodeProperty{
+						Hostname: "node-01",
+						CPU:      rdbmsmodel.CpuProperty{Threads: 2},
+						Memory:   rdbmsmodel.MemoryProperty{TotalSize: 4},
+						RootDisk: rdbmsmodel.DiskProperty{TotalSize: 50},
+					},
+					DBEngine: rdbmsmodel.DBEngineProperty{
+						Engine:        "mysql",
+						EngineVersion: "  ",
+					},
 				},
 			},
 			expectErr:   true,
@@ -80,58 +75,78 @@ func TestValidateSourceRDBMS(t *testing.T) {
 			name: "Non-positive vCPU",
 			sources: []rdbmsmodel.SourceRDBMSProperty{
 				{
-					InstanceName:  "db-01",
-					Engine:        "mysql",
-					EngineVersion: "8.0",
-					Vcpu:          0,
-					MemoryMb:      4096,
-					StorageSizeGb: 50,
+					DisplayName: "db-01",
+					DBNode: rdbmsmodel.DBNodeProperty{
+						Hostname: "node-01",
+						CPU:      rdbmsmodel.CpuProperty{Threads: 0, Cpus: 0},
+						Memory:   rdbmsmodel.MemoryProperty{TotalSize: 4},
+						RootDisk: rdbmsmodel.DiskProperty{TotalSize: 50},
+					},
+					DBEngine: rdbmsmodel.DBEngineProperty{
+						Engine:        "mysql",
+						EngineVersion: "8.0",
+					},
 				},
 			},
 			expectErr:   true,
-			errContains: "vcpu must be greater than 0",
+			errContains: "effective vcpu must be greater than 0",
 		},
 		{
-			name: "Non-positive MemoryMb",
+			name: "Non-positive Memory",
 			sources: []rdbmsmodel.SourceRDBMSProperty{
 				{
-					InstanceName:  "db-01",
-					Engine:        "mysql",
-					EngineVersion: "8.0",
-					Vcpu:          2,
-					MemoryMb:      -512,
-					StorageSizeGb: 50,
+					DisplayName: "db-01",
+					DBNode: rdbmsmodel.DBNodeProperty{
+						Hostname: "node-01",
+						CPU:      rdbmsmodel.CpuProperty{Threads: 2},
+						Memory:   rdbmsmodel.MemoryProperty{TotalSize: 0},
+						RootDisk: rdbmsmodel.DiskProperty{TotalSize: 50},
+					},
+					DBEngine: rdbmsmodel.DBEngineProperty{
+						Engine:        "mysql",
+						EngineVersion: "8.0",
+					},
 				},
 			},
 			expectErr:   true,
-			errContains: "memoryMb must be greater than 0",
+			errContains: "memory totalSize must be greater than 0",
 		},
 		{
-			name: "Non-positive StorageSizeGb",
+			name: "Non-positive Storage",
 			sources: []rdbmsmodel.SourceRDBMSProperty{
 				{
-					InstanceName:  "db-01",
-					Engine:        "mysql",
-					EngineVersion: "8.0",
-					Vcpu:          2,
-					MemoryMb:      4096,
-					StorageSizeGb: 0,
+					DisplayName: "db-01",
+					DBNode: rdbmsmodel.DBNodeProperty{
+						Hostname: "node-01",
+						CPU:      rdbmsmodel.CpuProperty{Threads: 2},
+						Memory:   rdbmsmodel.MemoryProperty{TotalSize: 4},
+						RootDisk: rdbmsmodel.DiskProperty{TotalSize: 0},
+					},
+					DBEngine: rdbmsmodel.DBEngineProperty{
+						Engine:        "mysql",
+						EngineVersion: "8.0",
+					},
 				},
 			},
 			expectErr:   true,
-			errContains: "storageSizeGb must be greater than 0",
+			errContains: "storage totalSize must be greater than 0",
 		},
 		{
 			name: "Missing DatabaseName in inner database list",
 			sources: []rdbmsmodel.SourceRDBMSProperty{
 				{
-					InstanceName:  "db-01",
-					Engine:        "mysql",
-					EngineVersion: "8.0",
-					Vcpu:          2,
-					MemoryMb:      4096,
-					StorageSizeGb: 50,
-					Databases: []rdbmsmodel.SourceDatabaseProperty{
+					DisplayName: "db-01",
+					DBNode: rdbmsmodel.DBNodeProperty{
+						Hostname: "node-01",
+						CPU:      rdbmsmodel.CpuProperty{Threads: 2},
+						Memory:   rdbmsmodel.MemoryProperty{TotalSize: 4},
+						RootDisk: rdbmsmodel.DiskProperty{TotalSize: 50},
+					},
+					DBEngine: rdbmsmodel.DBEngineProperty{
+						Engine:        "mysql",
+						EngineVersion: "8.0",
+					},
+					InnerDatabases: []rdbmsmodel.InnerDatabaseProperty{
 						{DatabaseName: ""},
 					},
 				},
@@ -143,13 +158,22 @@ func TestValidateSourceRDBMS(t *testing.T) {
 			name: "Valid Source Instance",
 			sources: []rdbmsmodel.SourceRDBMSProperty{
 				{
-					InstanceName:  "db-01",
-					Engine:        "mysql",
-					EngineVersion: "8.0",
-					Vcpu:          4,
-					MemoryMb:      8192,
-					StorageSizeGb: 100,
-					Databases: []rdbmsmodel.SourceDatabaseProperty{
+					DisplayName: "db-01",
+					DBNode: rdbmsmodel.DBNodeProperty{
+						Hostname: "node-01",
+						CPU:      rdbmsmodel.CpuProperty{Threads: 4},
+						Memory:   rdbmsmodel.MemoryProperty{TotalSize: 8},
+						RootDisk: rdbmsmodel.DiskProperty{TotalSize: 50, Type: "SSD"},
+						DataDisks: []rdbmsmodel.DiskProperty{
+							{TotalSize: 50, Type: "SSD"},
+						},
+					},
+					DBEngine: rdbmsmodel.DBEngineProperty{
+						Engine:        "mysql",
+						EngineVersion: "8.0",
+						Role:          "primary",
+					},
+					InnerDatabases: []rdbmsmodel.InnerDatabaseProperty{
 						{DatabaseName: "app_db"},
 					},
 				},
@@ -178,32 +202,353 @@ func TestValidateSourceRDBMS(t *testing.T) {
 func TestRecommendRDBMS_ValidationFailures(t *testing.T) {
 	validSource := []rdbmsmodel.SourceRDBMSProperty{
 		{
-			InstanceName:  "src-01",
-			Engine:        "mysql",
-			EngineVersion: "8.0",
-			Vcpu:          2,
-			MemoryMb:      4096,
-			StorageSizeGb: 50,
+			DisplayName: "src-01",
+			DBNode: rdbmsmodel.DBNodeProperty{
+				Hostname: "node-01",
+				CPU:      rdbmsmodel.CpuProperty{Threads: 2},
+				Memory:   rdbmsmodel.MemoryProperty{TotalSize: 4},
+				RootDisk: rdbmsmodel.DiskProperty{TotalSize: 50, Type: "SSD"},
+			},
+			DBEngine: rdbmsmodel.DBEngineProperty{
+				Engine:        "mysql",
+				EngineVersion: "8.0",
+			},
 		},
 	}
 
 	// Missing CSP
-	_, err := RecommendRDBMS("", "ap-northeast-2", validSource)
+	_, err := RecommendRDBMS("", "ap-northeast-2", validSource, true)
 	if err == nil || !strings.Contains(err.Error(), "desiredCsp and desiredRegion are required") {
 		t.Errorf("expected error for missing CSP, got %v", err)
 	}
 
 	// Missing Region
-	_, err = RecommendRDBMS("aws", "", validSource)
+	_, err = RecommendRDBMS("aws", "", validSource, true)
 	if err == nil || !strings.Contains(err.Error(), "desiredCsp and desiredRegion are required") {
 		t.Errorf("expected error for missing Region, got %v", err)
 	}
 
 	// Invalid Source (empty sources)
-	_, err = RecommendRDBMS("aws", "ap-northeast-2", []rdbmsmodel.SourceRDBMSProperty{})
+	_, err = RecommendRDBMS("aws", "ap-northeast-2", []rdbmsmodel.SourceRDBMSProperty{}, true)
 	if err == nil || !strings.Contains(err.Error(), "at least one source RDBMS instance is required") {
 		t.Errorf("expected error for empty sources, got %v", err)
 	}
+}
+
+func TestAutoFillSourceRDBMSDefaults(t *testing.T) {
+	t.Run("Empty sources list returns error", func(t *testing.T) {
+		_, _, err := AutoFillSourceRDBMSDefaults([]rdbmsmodel.SourceRDBMSProperty{})
+		if err == nil || !strings.Contains(err.Error(), "at least one source RDBMS instance is required") {
+			t.Errorf("expected error for empty sources, got %v", err)
+		}
+	})
+
+	t.Run("Missing engine returns error", func(t *testing.T) {
+		sources := []rdbmsmodel.SourceRDBMSProperty{
+			{
+				DisplayName: "test-db",
+				DBEngine:    rdbmsmodel.DBEngineProperty{Engine: ""},
+			},
+		}
+		_, _, err := AutoFillSourceRDBMSDefaults(sources)
+		if err == nil || !strings.Contains(err.Error(), "engine is required") {
+			t.Errorf("expected error for missing engine, got %v", err)
+		}
+	})
+
+	t.Run("Applies all sensible defaults when compute, storage, and version are 0/empty", func(t *testing.T) {
+		sources := []rdbmsmodel.SourceRDBMSProperty{
+			{
+				DisplayName: "zero-spec-mysql",
+				DBEngine: rdbmsmodel.DBEngineProperty{
+					Engine: "mysql",
+				},
+			},
+		}
+
+		filled, warnings, err := AutoFillSourceRDBMSDefaults(sources)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(filled) != 1 {
+			t.Fatalf("expected 1 filled source, got %d", len(filled))
+		}
+
+		inst := filled[0]
+		// EngineVersion defaulted to DefaultMySQLVersion ("8.0")
+		if inst.DBEngine.EngineVersion != DefaultMySQLVersion {
+			t.Errorf("expected engineVersion '%s', got '%s'", DefaultMySQLVersion, inst.DBEngine.EngineVersion)
+		}
+		// Port defaulted to 3306
+		if inst.DBEngine.Port != 3306 {
+			t.Errorf("expected port 3306, got %d", inst.DBEngine.Port)
+		}
+		// Role defaulted to standalone
+		if inst.DBEngine.Role != "standalone" {
+			t.Errorf("expected role 'standalone', got '%s'", inst.DBEngine.Role)
+		}
+		// vCPU defaulted to DefaultRDBMSVcpu (2)
+		if inst.DBNode.CPU.Cores != DefaultRDBMSVcpu || inst.DBNode.CPU.Threads != DefaultRDBMSVcpu {
+			t.Errorf("expected vCPU cores/threads %d, got cores=%d threads=%d", DefaultRDBMSVcpu, inst.DBNode.CPU.Cores, inst.DBNode.CPU.Threads)
+		}
+		// Memory defaulted to DefaultRDBMSMemoryGiB (4 GiB)
+		if inst.DBNode.Memory.TotalSize != DefaultRDBMSMemoryGiB {
+			t.Errorf("expected memory %d GiB, got %d", DefaultRDBMSMemoryGiB, inst.DBNode.Memory.TotalSize)
+		}
+		// Storage defaulted to DefaultRDBMSStorageGB (100) and DefaultRDBMSStorageType ("SSD")
+		if inst.DBNode.RootDisk.TotalSize != DefaultRDBMSStorageGB || inst.DBNode.RootDisk.Type != DefaultRDBMSStorageType {
+			t.Errorf("expected storage %d GB %s, got %d GB %s", DefaultRDBMSStorageGB, DefaultRDBMSStorageType, inst.DBNode.RootDisk.TotalSize, inst.DBNode.RootDisk.Type)
+		}
+
+		// Verify actionable warnings were generated
+		if len(warnings) < 4 {
+			t.Errorf("expected at least 4 warnings (version, CPU, memory, storage), got %d: %v", len(warnings), warnings)
+		}
+	})
+
+	t.Run("Engine version defaults for MariaDB and PostgreSQL", func(t *testing.T) {
+		sources := []rdbmsmodel.SourceRDBMSProperty{
+			{
+				DisplayName: "mariadb-node",
+				DBEngine:    rdbmsmodel.DBEngineProperty{Engine: "mariadb"},
+			},
+			{
+				DisplayName: "pg-node",
+				DBEngine:    rdbmsmodel.DBEngineProperty{Engine: "postgresql"},
+			},
+		}
+
+		filled, _, err := AutoFillSourceRDBMSDefaults(sources)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if filled[0].DBEngine.EngineVersion != DefaultMariaDBVersion {
+			t.Errorf("expected MariaDB default version '%s', got '%s'", DefaultMariaDBVersion, filled[0].DBEngine.EngineVersion)
+		}
+		if filled[0].DBEngine.Port != 3306 {
+			t.Errorf("expected MariaDB default port 3306, got %d", filled[0].DBEngine.Port)
+		}
+
+		if filled[1].DBEngine.EngineVersion != DefaultPostgreSQLVersion {
+			t.Errorf("expected PostgreSQL default version '%s', got '%s'", DefaultPostgreSQLVersion, filled[1].DBEngine.EngineVersion)
+		}
+		if filled[1].DBEngine.Port != 5432 {
+			t.Errorf("expected PostgreSQL default port 5432, got %d", filled[1].DBEngine.Port)
+		}
+	})
+
+	t.Run("Preserves explicitly specified specifications without overwriting", func(t *testing.T) {
+		sources := []rdbmsmodel.SourceRDBMSProperty{
+			{
+				DisplayName: "custom-db",
+				DBEngine: rdbmsmodel.DBEngineProperty{
+					Engine:        "mysql",
+					EngineVersion: "5.7",
+					Port:          3307,
+					Role:          "primary",
+				},
+				DBNode: rdbmsmodel.DBNodeProperty{
+					CPU:      rdbmsmodel.CpuProperty{Threads: 8},
+					Memory:   rdbmsmodel.MemoryProperty{TotalSize: 16},
+					RootDisk: rdbmsmodel.DiskProperty{TotalSize: 200, Type: "HDD"},
+				},
+			},
+		}
+
+		filled, warnings, err := AutoFillSourceRDBMSDefaults(sources)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(warnings) != 0 {
+			t.Errorf("expected 0 warnings for fully specified source, got %d: %v", len(warnings), warnings)
+		}
+		if filled[0].DBEngine.EngineVersion != "5.7" {
+			t.Errorf("expected version '5.7', got '%s'", filled[0].DBEngine.EngineVersion)
+		}
+		if filled[0].DBEngine.Port != 3307 {
+			t.Errorf("expected port 3307, got %d", filled[0].DBEngine.Port)
+		}
+		if filled[0].DBNode.CPU.Threads != 8 {
+			t.Errorf("expected threads 8, got %d", filled[0].DBNode.CPU.Threads)
+		}
+		if filled[0].DBNode.Memory.TotalSize != 16 {
+			t.Errorf("expected memory 16, got %d", filled[0].DBNode.Memory.TotalSize)
+		}
+		if filled[0].DBNode.RootDisk.TotalSize != 200 || filled[0].DBNode.RootDisk.Type != "HDD" {
+			t.Errorf("expected rootDisk 200 HDD, got %d %s", filled[0].DBNode.RootDisk.TotalSize, filled[0].DBNode.RootDisk.Type)
+		}
+	})
+}
+
+func TestRecommendRDBMS_AutoFillVsStrictValidationFlag(t *testing.T) {
+	// Source with 0 vCPU, 0 memory, 0 storage
+	zeroSpecSource := []rdbmsmodel.SourceRDBMSProperty{
+		{
+			DisplayName: "zero-spec-db",
+			DBEngine: rdbmsmodel.DBEngineProperty{
+				Engine: "mysql",
+			},
+		},
+	}
+
+	// 1. When autoFillSourceDefaults = false, strict ValidateSourceRDBMS must fail immediately
+	_, err := RecommendRDBMS("aws", "ap-northeast-2", zeroSpecSource, false)
+	if err == nil {
+		t.Fatalf("expected validation error when autoFillSourceDefaults is false, got nil")
+	}
+	if !strings.Contains(err.Error(), "engineVersion is required") &&
+		!strings.Contains(err.Error(), "effective vcpu must be greater than 0") {
+		t.Errorf("expected engineVersion or vcpu validation error, got: %v", err)
+	}
+
+	// 2. When autoFillSourceDefaults = true, validation does not fail with "vcpu must be greater than 0"
+	// (it proceeds past source validation to Tumblebug network call or capability lookup)
+	_, err = RecommendRDBMS("aws", "ap-northeast-2", zeroSpecSource, true)
+	// If it fails, it must NOT be a SourceRDBMS validation failure (such as "vcpu must be greater than 0")
+	if err != nil && (strings.Contains(err.Error(), "effective vcpu must be greater than 0") ||
+		strings.Contains(err.Error(), "engineVersion is required")) {
+		t.Errorf("unexpected validation failure when autoFillSourceDefaults is true: %v", err)
+	}
+}
+
+func TestTargetPreferences_DefaultsAndOverrides(t *testing.T) {
+	falseVal := false
+	trueVal := true
+
+	pref := &TargetPreferences{
+		AdminUserName:            "dbadmin",
+		HighAvailability:         &falseVal,
+		PublicAccess:             &trueVal,
+		BackupRetentionDays:      14,
+		NHNDBSGToAllowAllInbound: true,
+	}
+
+	if pref.AdminUserName != "dbadmin" {
+		t.Errorf("expected AdminUserName 'dbadmin', got '%s'", pref.AdminUserName)
+	}
+	if pref.HighAvailability == nil || *pref.HighAvailability != false {
+		t.Errorf("expected HighAvailability false, got %v", pref.HighAvailability)
+	}
+	if pref.PublicAccess == nil || *pref.PublicAccess != true {
+		t.Errorf("expected PublicAccess true, got %v", pref.PublicAccess)
+	}
+	if pref.BackupRetentionDays != 14 {
+		t.Errorf("expected BackupRetentionDays 14, got %d", pref.BackupRetentionDays)
+	}
+	if !pref.NHNDBSGToAllowAllInbound {
+		t.Errorf("expected NHNDBSGToAllowAllInbound true, got %v", pref.NHNDBSGToAllowAllInbound)
+	}
+}
+
+func TestCalculationHelpers(t *testing.T) {
+	// 1. resolveSourceRDBMSInstanceName
+	t.Run("resolveSourceRDBMSInstanceName", func(t *testing.T) {
+		// DisplayName preferred
+		src1 := rdbmsmodel.SourceRDBMSProperty{
+			DisplayName: "my-custom-db",
+			DBNode:      rdbmsmodel.DBNodeProperty{Hostname: "host-1", MachineId: "id-1"},
+		}
+		if id := resolveSourceRDBMSInstanceName(src1); id != "my-custom-db" {
+			t.Errorf("expected 'my-custom-db', got '%s'", id)
+		}
+
+		// Hostname fallback
+		src2 := rdbmsmodel.SourceRDBMSProperty{
+			DBNode: rdbmsmodel.DBNodeProperty{Hostname: "host-1", MachineId: "id-1"},
+		}
+		if id := resolveSourceRDBMSInstanceName(src2); id != "host-1" {
+			t.Errorf("expected 'host-1', got '%s'", id)
+		}
+
+		// MachineId fallback
+		src3 := rdbmsmodel.SourceRDBMSProperty{
+			DBNode: rdbmsmodel.DBNodeProperty{MachineId: "id-1"},
+		}
+		if id := resolveSourceRDBMSInstanceName(src3); id != "id-1" {
+			t.Errorf("expected 'id-1', got '%s'", id)
+		}
+
+		// Default fallback
+		src4 := rdbmsmodel.SourceRDBMSProperty{}
+		if id := resolveSourceRDBMSInstanceName(src4); id != "rdbms-node" {
+			t.Errorf("expected 'rdbms-node', got '%s'", id)
+		}
+	})
+
+	// 2. calculateEffectiveVcpu
+	t.Run("calculateEffectiveVcpu", func(t *testing.T) {
+		nodeWithThreads := rdbmsmodel.DBNodeProperty{
+			CPU: rdbmsmodel.CpuProperty{Threads: 8, Cpus: 1, Cores: 4},
+		}
+		if v := calculateEffectiveVcpu(nodeWithThreads); v != 8 {
+			t.Errorf("expected 8 threads, got %d", v)
+		}
+
+		nodeWithCpusCores := rdbmsmodel.DBNodeProperty{
+			CPU: rdbmsmodel.CpuProperty{Cpus: 2, Cores: 4},
+		}
+		if v := calculateEffectiveVcpu(nodeWithCpusCores); v != 8 {
+			t.Errorf("expected 8 (2*4), got %d", v)
+		}
+
+		nodeEmpty := rdbmsmodel.DBNodeProperty{}
+		if v := calculateEffectiveVcpu(nodeEmpty); v != 0 {
+			t.Errorf("expected 0 for empty CPU, got %d", v)
+		}
+	})
+
+	// 3. calculateEffectiveMemoryMb
+	t.Run("calculateEffectiveMemoryMb", func(t *testing.T) {
+		node := rdbmsmodel.DBNodeProperty{
+			Memory: rdbmsmodel.MemoryProperty{TotalSize: 8},
+		}
+		if m := calculateEffectiveMemoryMb(node); m != 8192 {
+			t.Errorf("expected 8192 MB, got %d", m)
+		}
+
+		nodeZero := rdbmsmodel.DBNodeProperty{}
+		if m := calculateEffectiveMemoryMb(nodeZero); m != 0 {
+			t.Errorf("expected 0 for empty memory, got %d", m)
+		}
+	})
+
+	// 4. calculateEffectiveStorageSizeGb
+	t.Run("calculateEffectiveStorageSizeGb", func(t *testing.T) {
+		node := rdbmsmodel.DBNodeProperty{
+			RootDisk:  rdbmsmodel.DiskProperty{TotalSize: 50},
+			DataDisks: []rdbmsmodel.DiskProperty{{TotalSize: 100}, {TotalSize: 50}},
+		}
+		if s := calculateEffectiveStorageSizeGb(node); s != 200 {
+			t.Errorf("expected 200 GB, got %d", s)
+		}
+	})
+
+	// 5. determinePrimaryStorageType
+	t.Run("determinePrimaryStorageType", func(t *testing.T) {
+		// DataDisk type preferred
+		node1 := rdbmsmodel.DBNodeProperty{
+			RootDisk:  rdbmsmodel.DiskProperty{Type: "HDD"},
+			DataDisks: []rdbmsmodel.DiskProperty{{Type: "SSD"}},
+		}
+		if st := determinePrimaryStorageType(node1); st != "SSD" {
+			t.Errorf("expected 'SSD', got '%s'", st)
+		}
+
+		// RootDisk fallback
+		node2 := rdbmsmodel.DBNodeProperty{
+			RootDisk: rdbmsmodel.DiskProperty{Type: "HDD"},
+		}
+		if st := determinePrimaryStorageType(node2); st != "HDD" {
+			t.Errorf("expected 'HDD', got '%s'", st)
+		}
+
+		// Default fallback
+		node3 := rdbmsmodel.DBNodeProperty{}
+		if st := determinePrimaryStorageType(node3); st != "SSD" {
+			t.Errorf("expected 'SSD', got '%s'", st)
+		}
+	})
 }
 
 func TestRecommendDBInstanceSpec_Proximity(t *testing.T) {
@@ -457,4 +802,63 @@ func TestSelectStorageType_NoFallback(t *testing.T) {
 	if note == nil || !note.Recommended {
 		t.Errorf("expected note to be recommended")
 	}
+}
+
+func TestResolveTargetAdminUser(t *testing.T) {
+	// 1. Unspecified user preference -> defaults to DefaultRDBMSAdminUser ("dbadmin")
+	t.Run("Default username when unspecified", func(t *testing.T) {
+		var warnings []string
+		u := resolveTargetAdminUser("", nil, &warnings)
+		if u != DefaultRDBMSAdminUser {
+			t.Errorf("expected '%s', got '%s'", DefaultRDBMSAdminUser, u)
+		}
+		if len(warnings) != 0 {
+			t.Errorf("expected 0 warnings, got %d", len(warnings))
+		}
+	})
+
+	// 2. User-specified allowed username -> preserves user input
+	t.Run("Preserves valid user input", func(t *testing.T) {
+		var warnings []string
+		req := &rdbmsmodel.RDBMSAdminUserNameRequirement{
+			ReservedValues: []string{"root", "admin", "administrator"},
+		}
+		u := resolveTargetAdminUser("customdbmaster", req, &warnings)
+		if u != "customdbmaster" {
+			t.Errorf("expected 'customdbmaster', got '%s'", u)
+		}
+		if len(warnings) != 0 {
+			t.Errorf("expected 0 warnings, got %d", len(warnings))
+		}
+	})
+
+	// 3. User requested a reserved username -> replaces with compliant default and warns
+	t.Run("Replaces reserved username with default and warns", func(t *testing.T) {
+		var warnings []string
+		req := &rdbmsmodel.RDBMSAdminUserNameRequirement{
+			ReservedValues: []string{"root", "admin"},
+		}
+		u := resolveTargetAdminUser("root", req, &warnings)
+		if u != DefaultRDBMSAdminUser {
+			t.Errorf("expected '%s', got '%s'", DefaultRDBMSAdminUser, u)
+		}
+		if len(warnings) == 0 || !strings.Contains(warnings[0], "not allowed on target cloud") {
+			t.Errorf("expected not allowed warning, got %v", warnings)
+		}
+	})
+
+	// 4. CSP requires FixedValue -> enforces FixedValue and warns if user specified different
+	t.Run("Enforces CSP FixedValue", func(t *testing.T) {
+		var warnings []string
+		req := &rdbmsmodel.RDBMSAdminUserNameRequirement{
+			FixedValue: "azureuser",
+		}
+		u := resolveTargetAdminUser("customuser", req, &warnings)
+		if u != "azureuser" {
+			t.Errorf("expected 'azureuser', got '%s'", u)
+		}
+		if len(warnings) == 0 || !strings.Contains(warnings[0], "not allowed on target cloud") {
+			t.Errorf("expected not allowed warning, got %v", warnings)
+		}
+	})
 }

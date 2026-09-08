@@ -21,6 +21,7 @@ import (
 	"github.com/cloud-barista/cm-beetle/pkg/api/rest/controller"
 	"github.com/cloud-barista/cm-beetle/pkg/api/rest/model"
 	"github.com/cloud-barista/cm-beetle/pkg/core/common"
+	"github.com/cloud-barista/cm-beetle/pkg/core/recommendation"
 	"github.com/cloud-barista/cm-beetle/pkg/logger"
 )
 
@@ -575,18 +576,27 @@ func runSingleRDBMSTest(
 
 	// 2.3 POST /recommendation/middleware/rdbms
 	recStep := TestResults{TestName: "Beetle POST Recommend RDBMS", StartTime: time.Now()}
+	autoFillDefaults := true
 	recReqBody := controller.RecommendRDBMSRequest{
 		DesiredCloud: rdbmsmodel.CloudProperty{
 			Csp:    tc.Csp,
 			Region: tc.Region,
 		},
+		AutoFillSourceDefaults: &autoFillDefaults,
+		TargetPreferences: &recommendation.TargetPreferences{
+			AdminUserName:            tc.AdminUserName,
+			PublicAccess:             &tc.PublicAccess,
+			HighAvailability:         &tc.HighAvailability,
+			NHNDBSGToAllowAllInbound: tc.NHNDBSGToAllowAllInbound,
+			BackupRetentionDays:      7,
+		},
 		SourceRDBMSInstances: baseReq.SourceRDBMSInstances,
 	}
 	if tc.DBEngine != "" {
 		for i := range recReqBody.SourceRDBMSInstances {
-			recReqBody.SourceRDBMSInstances[i].Engine = tc.DBEngine
+			recReqBody.SourceRDBMSInstances[i].DBEngine.Engine = tc.DBEngine
 			if tc.DBEngineVersion != "" {
-				recReqBody.SourceRDBMSInstances[i].EngineVersion = tc.DBEngineVersion
+				recReqBody.SourceRDBMSInstances[i].DBEngine.EngineVersion = tc.DBEngineVersion
 			}
 		}
 	}
@@ -639,9 +649,11 @@ func runSingleRDBMSTest(
 				log.Info().Msgf("[%s] Using recommended DBEngineVersion '%s' (test-config reference: '%s')", tc.Csp, inst.DBEngineVersion, tc.DBEngineVersion)
 			}
 
-			// Admin credentials
-			if tc.AdminUserName != "" {
+			// Admin credentials: use recommendation if present, fallback to test-config
+			if inst.AdminUserName == "" && tc.AdminUserName != "" {
 				inst.AdminUserName = tc.AdminUserName
+			} else if inst.AdminUserName != "" && tc.AdminUserName != "" {
+				log.Info().Msgf("[%s] Using recommended AdminUserName '%s' (test-config reference: '%s')", tc.Csp, inst.AdminUserName, tc.AdminUserName)
 			}
 			if tc.AdminUserPassword != "" {
 				inst.AdminUserPassword = tc.AdminUserPassword
@@ -1627,8 +1639,8 @@ func generateSummaryReport(outputDir string, reports []*RDBMSTestReport, totalDu
 
 	for _, r := range validReports {
 		engine := "mysql"
-		if len(r.SourceRDBMS.SourceRDBMSInstances) > 0 && r.SourceRDBMS.SourceRDBMSInstances[0].Engine != "" {
-			engine = strings.ToLower(r.SourceRDBMS.SourceRDBMSInstances[0].Engine)
+		if len(r.SourceRDBMS.SourceRDBMSInstances) > 0 && r.SourceRDBMS.SourceRDBMSInstances[0].DBEngine.Engine != "" {
+			engine = strings.ToLower(r.SourceRDBMS.SourceRDBMSInstances[0].DBEngine.Engine)
 		}
 		if strings.EqualFold(engine, "mariadb") || strings.Contains(strings.ToLower(r.DisplayName), "mariadb") {
 			mariadbReports = append(mariadbReports, r)
@@ -1848,8 +1860,8 @@ func getStepIcon(results []TestResults, stepName string) string {
 
 func generateDetailedReport(outputDir string, r *RDBMSTestReport) {
 	engine := "mysql"
-	if len(r.SourceRDBMS.SourceRDBMSInstances) > 0 && r.SourceRDBMS.SourceRDBMSInstances[0].Engine != "" {
-		engine = strings.ToLower(r.SourceRDBMS.SourceRDBMSInstances[0].Engine)
+	if len(r.SourceRDBMS.SourceRDBMSInstances) > 0 && r.SourceRDBMS.SourceRDBMSInstances[0].DBEngine.Engine != "" {
+		engine = strings.ToLower(r.SourceRDBMS.SourceRDBMSInstances[0].DBEngine.Engine)
 	}
 	isMariaDB := strings.EqualFold(engine, "mariadb") || strings.Contains(strings.ToLower(r.DisplayName), "mariadb")
 
