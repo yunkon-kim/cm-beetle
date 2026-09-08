@@ -52,11 +52,9 @@ func RecommendK8sNodeGroupSpecs(provider, region string, srcInfra onpremmodel.On
 		specsLimit = GetDefaultSpecsLimit()
 	}
 
-	// Share the resolve-then-merge pipeline with RecommendK8sInfra so both APIs report the same
-	// node group breakdown for the same input. They used to derive groups independently, which let
-	// them disagree.
-	targets := recommendWorkerTargets(getTargetProfile(provider, region), workers, specsLimit)
-	groups, failed := mergeIntoNodeGroups(targets)
+	// Share the node group pipeline with RecommendK8sInfra so both APIs report the same breakdown
+	// for the same input. They used to derive groups independently, which let them disagree.
+	groups, failed := recommendNodeGroups(getTargetProfile(provider, region), normalizeWorkers(workers), specsLimit)
 	logExcludedWorkers(failed)
 
 	for i, g := range groups {
@@ -106,54 +104,30 @@ func RecommendK8sNodeGroupSpecs(provider, region string, srcInfra onpremmodel.On
 
 // RecommendK8sNodeSpecs recommends cost-ranked specs for a single K8s worker node.
 //
+// The requirement it searches against is already normalized (see normalizeWorker): vCPU computed
+// by one rule, architecture canonicalized, and sizing floored at the minimum viable worker spec.
+// This function decides only what can be bought to satisfy it — which needs the target catalog and
+// is therefore the one part that cannot be done without I/O.
+//
 // It differs from RecommendVmSpecs in three ways, all driven by the same constraint — a worker
 // smaller than its source leaves pods unschedulable:
-//   - the search range is clamped so it never dips below the source (nor below the minimum viable
-//     worker spec), whereas the VM path deliberately allows downsizing,
+//   - the search range is clamped so it never dips below the requirement, whereas the VM path
+//     deliberately allows downsizing,
 //   - ranking ignores CPU vendor (see sortK8sSpecsByProximity): with every candidate already at or
 //     above the source, a vendor match can only buy a larger, costlier node,
 //   - NCP hypervisor filtering is skipped (NKS is pinned to XEN, so the VM path's KVM filter would
-//     exclude the very specs NKS can use),
-//   - an upscale note is returned when the floor raised the request, so callers can surface it.
+//     exclude the very specs NKS can use).
 //
 // The request goes to Tumblebug's K8s endpoint, whose validateK8sMinimumRequirements enforces the
-// K8s node minimums; the clamp below keeps the lower bounds at or above those minimums so the
-// request passes validation instead of being rejected.
-func RecommendK8sNodeSpecs(provider, region string, worker onpremmodel.NodeProperty, limit int) ([]cloudmodel.SpecInfo, string, error) {
+// K8s node minimums; the requirement's floor keeps the lower bounds at or above those minimums so
+// the request passes validation instead of being rejected.
+func RecommendK8sNodeSpecs(provider, region string, req workerRequirement, limit int) ([]cloudmodel.SpecInfo, error) {
 
 	if limit <= 0 {
 		limit = GetDefaultSpecsLimit()
 	}
 
-	// Source sizing uses the shared sourceVcpuOf rule, so the value driving this search is the
-	// same one that keys the recommendation cache. Deriving it twice, differently, is how a node
-	// could previously be keyed by one vCPU count and sized by another.
-	srcVcpu := sourceVcpuOf(worker)
-	srcMem := uint32(worker.Memory.TotalSize)
-	arch := normalizeArch(worker.CPU.Architecture)
-
-	// Floor at the minimum viable worker spec, and report the change so it is not silent.
-	minVcpu, minMem := srcVcpu, srcMem
-	if minVcpu < minViableWorkerVcpu {
-		minVcpu = minViableWorkerVcpu
-	}
-	if uint64(minMem) < minViableWorkerMemGiB {
-		minMem = uint32(minViableWorkerMemGiB)
-	}
-
-	upscaleNote := ""
-	if minVcpu != srcVcpu || minMem != srcMem {
-		upscaleNote = fmt.Sprintf(
-			"(worker spec upscaled from source %dvCPU/%dGiB to %dvCPU/%dGiB — the minimum node size "+
-				"accepted by the target K8s node recommendation. A node this small leaves little allocatable "+
-				"capacity after kubelet, kube-proxy, CNI, and system pods take their reserved share, so pods "+
-				"may fail to schedule at the source size.)",
-			srcVcpu, srcMem, minVcpu, minMem)
-		log.Warn().
-			Uint32("sourceVcpu", srcVcpu).Uint32("sourceMemGiB", srcMem).
-			Uint32("minVcpu", minVcpu).Uint32("minMemGiB", minMem).
-			Msg("Source worker below minimum viable K8s worker spec; upscaling recommendation")
-	}
+	minVcpu, minMem, arch := req.vcpu, req.memGiB, req.arch
 
 	for rangeWeight := 1; rangeWeight <= maxK8sSpecRangeWeight; rangeWeight++ {
 
@@ -188,7 +162,7 @@ func RecommendK8sNodeSpecs(provider, region string, worker onpremmodel.NodePrope
 
 		found, err := tbclient.NewSession().K8sClusterRecommendNode(req)
 		if err != nil {
-			return nil, upscaleNote, fmt.Errorf("K8s worker spec search failed: %w", err)
+			return nil, fmt.Errorf("K8s worker spec search failed: %w", err)
 		}
 
 		// Drop unpriced specs only when pricing data exists at all, so regions without loaded
@@ -200,7 +174,7 @@ func RecommendK8sNodeSpecs(provider, region string, worker onpremmodel.NodePrope
 		if len(found) > 0 {
 			converted, err := modelconv.ConvertWithValidation[[]tbmodel.SpecInfo, []cloudmodel.SpecInfo](found)
 			if err != nil {
-				return nil, upscaleNote, fmt.Errorf("failed to convert K8s worker spec list: %w", err)
+				return nil, fmt.Errorf("failed to convert K8s worker spec list: %w", err)
 			}
 
 			sortK8sSpecsByProximity(converted, minVcpu, minMem)
@@ -212,7 +186,7 @@ func RecommendK8sNodeSpecs(provider, region string, worker onpremmodel.NodePrope
 				Int("specsFound", len(converted)).Int("rangeWeight", rangeWeight).
 				Str("topSpecId", converted[0].Id).
 				Msg("K8s worker specs selected")
-			return converted, upscaleNote, nil
+			return converted, nil
 		}
 
 		log.Warn().
@@ -220,7 +194,7 @@ func RecommendK8sNodeSpecs(provider, region string, worker onpremmodel.NodePrope
 			Msg("No K8s worker spec found in range, widening and retrying")
 	}
 
-	return nil, upscaleNote, fmt.Errorf(
+	return nil, fmt.Errorf(
 		"no spec found for K8s worker node (vCPU>=%d, memory>=%dGiB) in %s %s after %d attempts",
 		minVcpu, minMem, provider, region, maxK8sSpecRangeWeight)
 }

@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -78,8 +79,7 @@ func RecommendK8sInfra(provider, region string, onpremInfra onpremmodel.OnpremIn
 	// sortK8sSpecsByProximity sorting a one-element slice — so the two APIs could recommend
 	// different specs for the same worker whenever the cheapest candidate in range is not the
 	// closest one.
-	targets := recommendWorkerTargets(profile, workerNodes, GetDefaultSpecsLimit())
-	groups, failed := mergeIntoNodeGroups(targets)
+	groups, failed := recommendNodeGroups(profile, normalizeWorkers(workerNodes), GetDefaultSpecsLimit())
 	logExcludedWorkers(failed)
 	if len(groups) == 0 {
 		return emptyRet, fmt.Errorf("no K8s worker node group could be recommended: %s", summarizeFailures(failed))
@@ -178,14 +178,82 @@ func sourceVcpuOf(n onpremmodel.NodeProperty) uint32 {
 	return cpus * threads
 }
 
+// workerRequirement is one source worker translated into the sizing the target must satisfy.
+//
+// Three things happen while building it, all of them pure — no target cloud is consulted:
+//   - vCPU is computed by one rule (sourceVcpuOf), so collectors that report CPU differently
+//     produce the same number for the same machine.
+//   - Architecture aliases are canonicalized (amd64/x64 -> x86_64).
+//   - Sizing is floored at minViableWorkerVcpu/MemGiB. This *changes* the value rather than
+//     canonicalizing it: below that floor a node is not a viable managed K8s worker and AKS
+//     rejects it outright. upscaleNote records the change so it never happens silently.
+//
+// What is NOT decided here: whether any of it can be bought. Which specs exist in a region is a
+// target lookup, so it belongs to the spec search — see RecommendK8sNodeSpecs.
+//
+// The source node travels with the requirement because node groups report their members by
+// machine id, and because the failure path needs to name the worker that could not be resolved.
+type workerRequirement struct {
+	node        onpremmodel.NodeProperty
+	vcpu        uint32
+	memGiB      uint32
+	arch        string
+	upscaleNote string // non-empty only when the floor raised the request
+}
+
+// normalizeWorker turns one source worker into the sizing the target must satisfy.
+// See workerRequirement for what "normalize" covers, and what it deliberately does not.
+func normalizeWorker(n onpremmodel.NodeProperty) workerRequirement {
+	srcVcpu := sourceVcpuOf(n)
+	srcMem := uint32(n.Memory.TotalSize)
+
+	req := workerRequirement{
+		node:   n,
+		vcpu:   srcVcpu,
+		memGiB: srcMem,
+		arch:   normalizeArch(n.CPU.Architecture),
+	}
+	if req.vcpu < minViableWorkerVcpu {
+		req.vcpu = minViableWorkerVcpu
+	}
+	if uint64(req.memGiB) < minViableWorkerMemGiB {
+		req.memGiB = uint32(minViableWorkerMemGiB)
+	}
+
+	if req.vcpu != srcVcpu || req.memGiB != srcMem {
+		req.upscaleNote = fmt.Sprintf(
+			"(worker spec upscaled from source %dvCPU/%dGiB to %dvCPU/%dGiB — the minimum node size "+
+				"accepted by the target K8s node recommendation. A node this small leaves little allocatable "+
+				"capacity after kubelet, kube-proxy, CNI, and system pods take their reserved share, so pods "+
+				"may fail to schedule at the source size.)",
+			srcVcpu, srcMem, req.vcpu, req.memGiB)
+		log.Warn().
+			Uint32("sourceVcpu", srcVcpu).Uint32("sourceMemGiB", srcMem).
+			Uint32("minVcpu", req.vcpu).Uint32("minMemGiB", req.memGiB).
+			Msg("Source worker below minimum viable K8s worker spec; upscaling recommendation")
+	}
+	return req
+}
+
+// normalizeWorkers applies normalizeWorker to every worker, preserving source order.
+func normalizeWorkers(nodes []onpremmodel.NodeProperty) []workerRequirement {
+	reqs := make([]workerRequirement, 0, len(nodes))
+	for _, n := range nodes {
+		reqs = append(reqs, normalizeWorker(n))
+	}
+	return reqs
+}
+
 // workerSpecKey is the memoization key for spec recommendation — NOT a partition key.
 //
 // Two workers sharing a key resolve to the same target, so the recommendation is computed once.
 // Two workers with different keys may still end up in the same node group: merging happens on the
-// resolved target, not here (see mergeIntoNodeGroups). That is what stops a 1-unit difference in
+// resolved target, not here (see groupWorkersIntoNodeGroups). That is what stops a 1-unit difference in
 // the source from producing a separate node group.
-func workerSpecKey(n onpremmodel.NodeProperty) string {
-	return fmt.Sprintf("%d|%d|%s", sourceVcpuOf(n), n.Memory.TotalSize, normalizeArch(n.CPU.Architecture))
+// Keying on the normalized requirement rather than the raw node means two workers that differ
+// only below the floor (1vCPU/1GiB and 2vCPU/4GiB both become 2vCPU/4GiB) share one search.
+func workerSpecKey(req workerRequirement) string {
+	return fmt.Sprintf("%d|%d|%s", req.vcpu, req.memGiB, req.arch)
 }
 
 // workerTarget is one source worker resolved against the target cloud: the ranked specs it maps
@@ -210,53 +278,82 @@ func (t workerTarget) specId() string {
 	return t.specs[0].Id
 }
 
-// recommendWorkerTargets recommends a target spec and node image for every worker, in source order.
+// recommendSpecsAndImages finds the target spec candidates and node image for every worker, in
+// source order. Workers that could not be resolved are returned separately rather than aborting
+// the whole recommendation — one worker without an available node image must not cost the caller
+// the entire cluster. The exclusion is reported by logExcludedWorkers and summarizeFailures.
 //
-// Recommendation is memoized by workerSpecKey so identical workers cost one Tumblebug call, which
+// It recommends specs and images, not node groups: it compares nothing across workers, so whether
+// two of them share a node group is not decided here. That happens downstream, on the resolved
+// target — see recommendNodeGroups.
+//
+// The recommendation is memoized by workerSpecKey so identical workers cost one Tumblebug call, which
 // keeps the call count at what the previous group-then-recommend flow used. The key is a cache key
 // only — see workerSpecKey.
 //
 // The memo lives for one call, during which limit is fixed, so limit is not part of the key. Add
 // it if a future caller varies limit per worker.
-func recommendWorkerTargets(p targetProfile, workers []onpremmodel.NodeProperty, limit int) []workerTarget {
+func recommendSpecsAndImages(p targetProfile, reqs []workerRequirement, limit int) (candidates, failed []workerTarget) {
 
-	memo := make(map[string]workerTarget, len(workers))
-	targets := make([]workerTarget, 0, len(workers))
+	memo := make(map[string]workerTarget, len(reqs))
+	targets := make([]workerTarget, 0, len(reqs))
 
-	for _, w := range workers {
-		key := workerSpecKey(w)
-		if cached, ok := memo[key]; ok {
-			cached.node = w // the node differs per worker; everything else is shared
-			targets = append(targets, cached)
-			continue
+	for _, req := range reqs {
+		key := workerSpecKey(req)
+		t, cached := memo[key]
+		if cached {
+			// The resolved target is shared, but the node and its note are per worker: two
+			// workers can share a key and still have been floored from different source sizes.
+			t.node, t.upscaleNote = req.node, req.upscaleNote
+		} else {
+			t = resolveWorkerTarget(p, req, limit)
+			memo[key] = t
 		}
-
-		t := workerTarget{node: w}
-
-		specs, note, err := RecommendK8sNodeSpecs(p.provider, p.region, w, limit)
-		switch {
-		case err != nil:
-			// Keep machine IDs out of the error text: failures are grouped by cause and the
-			// affected IDs are listed separately (see groupFailuresByCause).
-			t.err = fmt.Errorf("spec recommendation failed: %w", err)
-		case len(specs) == 0:
-			t.err = fmt.Errorf("no target spec found within the search range")
-		default:
-			t.specs, t.upscaleNote = specs, note
-			// The spec search already filtered on this architecture, so the image must match it:
-			// an ARM spec needs an ARM image, not the x86 default.
-			imageId, imgErr := selectK8sNodeImage(p, normalizeArch(w.CPU.Architecture))
-			if imgErr != nil {
-				t.err = fmt.Errorf("node image selection failed: %w", imgErr)
-			} else {
-				t.imageId = imageId
-			}
-		}
-
-		memo[key] = t
 		targets = append(targets, t)
 	}
-	return targets
+	return splitResolved(targets)
+}
+
+// splitResolved separates the workers that resolved from those that did not, preserving source
+// order in both. Split here rather than during grouping so the two concerns stay apart: a failed
+// worker has no target to be grouped on.
+func splitResolved(targets []workerTarget) (candidates, failed []workerTarget) {
+	for _, t := range targets {
+		if t.err != nil {
+			failed = append(failed, t)
+			continue
+		}
+		candidates = append(candidates, t)
+	}
+	return candidates, failed
+}
+
+// resolveWorkerTarget searches for one worker's spec candidates and node image. A non-nil err on
+// the result means this worker could not be resolved; it is never returned as a Go error because
+// the caller keeps going with the workers that did resolve.
+func resolveWorkerTarget(p targetProfile, req workerRequirement, limit int) workerTarget {
+	t := workerTarget{node: req.node, upscaleNote: req.upscaleNote}
+
+	specs, err := RecommendK8sNodeSpecs(p.provider, p.region, req, limit)
+	switch {
+	case err != nil:
+		// Keep machine IDs out of the error text: failures are grouped by cause and the
+		// affected IDs are listed separately (see groupFailuresByCause).
+		t.err = fmt.Errorf("spec recommendation failed: %w", err)
+	case len(specs) == 0:
+		t.err = fmt.Errorf("no target spec found within the search range")
+	default:
+		t.specs = specs
+		// The spec search already filtered on this architecture, so the image must match it:
+		// an ARM spec needs an ARM image, not the x86 default.
+		imageId, imgErr := selectK8sNodeImage(p, req.arch)
+		if imgErr != nil {
+			t.err = fmt.Errorf("node image selection failed: %w", imgErr)
+		} else {
+			t.imageId = imageId
+		}
+	}
+	return t
 }
 
 // nodeGroupAccum accumulates the source workers that resolved to one target (spec, image) pair.
@@ -267,6 +364,14 @@ type nodeGroupAccum struct {
 	notes   []string
 }
 
+// spec returns the node group's chosen target spec.
+func (g nodeGroupAccum) spec() cloudmodel.SpecInfo {
+	if len(g.specs) == 0 {
+		return cloudmodel.SpecInfo{}
+	}
+	return g.specs[0]
+}
+
 // specId returns the node group's target spec id.
 func (g nodeGroupAccum) specId() string {
 	if len(g.specs) == 0 {
@@ -275,9 +380,19 @@ func (g nodeGroupAccum) specId() string {
 	return g.specs[0].Id
 }
 
-// mergeIntoNodeGroups collapses resolved workers into homogeneous node groups keyed by the target
-// (specId, imageId) pair — never by source attributes. Two source workers differing by a single
-// vCPU that resolve to the same instance type therefore share one node group.
+// groupWorkersIntoNodeGroups turns resolved workers into homogeneous node groups, keyed by the
+// target (specId, imageId) pair — never by source attributes. Two source workers differing by a
+// single vCPU that resolve to the same instance type therefore share one node group.
+//
+// This is a group-by, not a decision: same target means same node group, unconditionally. It is
+// also the only step that changes the unit of the data, from per worker to per node group.
+//
+// It cannot be folded into mergeNodeGroupsByUpsizing, whose criteria ask "how much does promoting
+// cost" and would wrongly refuse workers that are already on the same spec. Say a 12vCPU/24GiB
+// requirement and a 16vCPU/64GiB one both land on m5.4xlarge (16/64) because no 12-vCPU spec
+// exists. canMergeByUpsizing sees memory utilization 24/64 = 0.375 and refuses — leaving two node
+// groups with the identical spec, which a managed node group has no reason to have. The unused
+// 40GiB came from catalog rounding, not from promotion, so charging it to promotion is wrong.
 //
 // Architecture needs no separate key: specId implies it (a spec belongs to exactly one
 // architecture), so arm64 and x86_64 workers can never merge and every member of a group shares
@@ -285,14 +400,11 @@ func (g nodeGroupAccum) specId() string {
 //
 // Groups are ordered by first appearance in the source node list, so node group indices — and
 // therefore names — are deterministic across runs.
-func mergeIntoNodeGroups(targets []workerTarget) (groups []nodeGroupAccum, failed []workerTarget) {
+func groupWorkersIntoNodeGroups(candidates []workerTarget) []nodeGroupAccum {
 	index := make(map[string]int)
+	var groups []nodeGroupAccum
 
-	for _, t := range targets {
-		if t.err != nil {
-			failed = append(failed, t)
-			continue
-		}
+	for _, t := range candidates {
 		key := t.specId() + "|" + t.imageId
 		if i, ok := index[key]; ok {
 			groups[i].nodes = append(groups[i].nodes, t.node)
@@ -306,7 +418,208 @@ func mergeIntoNodeGroups(targets []workerTarget) (groups []nodeGroupAccum, faile
 			notes:   noteSlice(t.upscaleNote),
 		})
 	}
-	return groups, failed
+	return groups
+}
+
+// recommendNodeGroups recommends the node groups for a set of normalized workers.
+//
+// This is where a node group recommendation is finished; the three steps below are its
+// implementation, not three separate recommendations. Assembling them here rather than at the call
+// sites is what stops RecommendK8sInfra and the L0 spec API from ending up with different node
+// group breakdowns for the same input — they used to derive groups independently and could
+// disagree.
+func recommendNodeGroups(p targetProfile, reqs []workerRequirement, limit int) ([]nodeGroupAccum, []workerTarget) {
+	candidates, failed := recommendSpecsAndImages(p, reqs, limit) // find specs and images     (I/O)
+	groups := groupWorkersIntoNodeGroups(candidates)              // workers -> node groups    (pure)
+	return mergeNodeGroupsByUpsizing(groups), failed              // node groups -> fewer ones (pure)
+}
+
+// Consolidation bounds. A worker is only promoted into a larger group's spec when the result stays
+// within both of these — they guard different risks and neither subsumes the other.
+//
+//   - upsizeUtilFloor bounds the *ratio*. At 0.5 a worker may rise by at most one catalog
+//     step, since instance families roughly double (4 → 8 → 16 vCPU): a second step would leave it
+//     at 25%. Industry sizing guidance treats anything under ~60% as over-provisioned and Azure
+//     Migrate's default buffer is 1.3x, so 2x is already generous; it is the price of removing a
+//     node group, not a headroom target.
+//   - maxWastedVcpu / maxWastedMemGiB bound the *absolute* amount. The ratio alone leaks at the top
+//     of the catalog, where steps shrink to 1.5x and 1.33x: 32 → 64 vCPU spans two steps yet still
+//     computes to exactly 50%, wasting 32 vCPU. The caps stop that. 16 vCPU is the largest single
+//     step below 64 vCPU, so one step stays allowed through that range.
+//
+// Neither value is derived from a published standard; both are judgment calls to revisit once real
+// cluster data exists. See docs/k8s-recommendation/k8s-node-group-consolidation-analysis.md.
+const (
+	upsizeUtilFloor = 0.5
+	maxWastedVcpu   = 16
+	maxWastedMemGiB = 64
+)
+
+// mergeNodeGroupsByUpsizing folds node groups into their larger neighbours where the smaller
+// group's workers would still be reasonably sized in the larger spec.
+//
+// Despite sitting last, this is a recommendation and not a tidy-up: it changes which spec the
+// promoted workers are bought at. It is also the only step that reduces the node group count —
+// groupWorkersIntoNodeGroups decides the starting count, this decides the final one.
+//
+// It never consults the catalog. The promotion target is the largest spec already present in the
+// run, so no worker can land on a spec that no worker resolved to, and the function stays pure.
+//
+// Managed node groups are homogeneous, so consolidating means promoting the smaller workers to the
+// larger spec — capacity they will not use and do pay for. That is why it is bounded rather than
+// unconditional: merging everything into the largest spec costs far more than it saves.
+//
+// Groups are sorted smallest-first and each run is extended while the whole run still passes, so a
+// chain cannot slip past the bounds by merging pairwise. Merging the small end first is also where
+// consolidation is cheapest in absolute terms.
+func mergeNodeGroupsByUpsizing(groups []nodeGroupAccum) []nodeGroupAccum {
+	if len(groups) < 2 {
+		return groups
+	}
+
+	// Size order drives the merging, but the caller's order is restored afterwards: consolidation
+	// should change which node groups exist, not the order they are reported in. Node group names
+	// are index-based, so reordering would rename groups for no reason.
+	type ranked struct {
+		nodeGroupAccum
+		origin int // first-appearance index, used to restore the caller's order
+	}
+	ordered := make([]ranked, len(groups))
+	for i, g := range groups {
+		ordered[i] = ranked{nodeGroupAccum: g, origin: i}
+	}
+	sort.SliceStable(ordered, func(i, j int) bool {
+		a, b := ordered[i].spec(), ordered[j].spec()
+		if a.VCPU != b.VCPU {
+			return a.VCPU < b.VCPU
+		}
+		return a.MemoryGiB < b.MemoryGiB
+	})
+
+	bySize := make([]nodeGroupAccum, len(ordered))
+	for i, r := range ordered {
+		bySize[i] = r.nodeGroupAccum
+	}
+
+	var out []ranked
+	for i := 0; i < len(bySize); {
+		end := i
+		for end+1 < len(bySize) && canMergeByUpsizing(bySize[i:end+2]) {
+			end++
+		}
+		// A merged run takes the earliest origin among its members, so it lands where the first of
+		// those groups used to be.
+		origin := ordered[i].origin
+		for _, r := range ordered[i : end+1] {
+			if r.origin < origin {
+				origin = r.origin
+			}
+		}
+		out = append(out, ranked{nodeGroupAccum: mergeRun(bySize[i : end+1]), origin: origin})
+		i = end + 1
+	}
+
+	sort.Slice(out, func(i, j int) bool { return out[i].origin < out[j].origin })
+	restored := make([]nodeGroupAccum, len(out))
+	for i, r := range out {
+		restored[i] = r.nodeGroupAccum
+	}
+	return restored
+}
+
+// canMergeByUpsizing reports whether every worker in the run would still be acceptably sized in
+// the run's largest spec — that is, whether the promotion is worth what it costs. The check is against the whole run, not pairs, so extending a run re-tests
+// the workers already in it.
+//
+// Architecture is not compared: a spec belongs to exactly one architecture, so an arm64 and an
+// x86_64 group can never satisfy the size checks against a single spec anyway — and the node image
+// travels with the spec.
+func canMergeByUpsizing(run []nodeGroupAccum) bool {
+	target := run[len(run)-1].spec()
+	if target.VCPU == 0 || target.MemoryGiB == 0 {
+		return false
+	}
+	// An arm64 spec cannot host x86_64 workers or vice versa, whatever the sizes say. An unknown
+	// architecture is treated the same: consolidation is optional, so guessing is never worth it.
+	if target.Architecture == "" {
+		return false
+	}
+	for _, g := range run {
+		if !strings.EqualFold(g.spec().Architecture, target.Architecture) {
+			return false
+		}
+	}
+
+	minVcpu, minMem := minSourceSize(run)
+
+	// Ratio: how much of the target each worker would actually use.
+	if float64(minVcpu)/float64(target.VCPU) < upsizeUtilFloor {
+		return false
+	}
+	if float64(minMem)/float64(target.MemoryGiB) < upsizeUtilFloor {
+		return false
+	}
+	// Absolute: how much capacity is bought and left idle.
+	if float64(target.VCPU)-float64(minVcpu) > maxWastedVcpu {
+		return false
+	}
+	if float64(target.MemoryGiB)-float64(minMem) > maxWastedMemGiB {
+		return false
+	}
+	return true
+}
+
+// minSourceSize returns the smallest source vCPU and memory across every worker in the run. The
+// smallest worker has the lowest utilization, so checking it covers the rest; the two dimensions
+// are taken independently because different workers may hold each minimum.
+//
+// Deliberately the *source* size, not the normalized requirement. Reading the requirement would
+// let the two upsizing mechanisms compound: the floor has already raised a 1vCPU/2GiB worker to
+// 2vCPU/4GiB, and measuring from there would let consolidation raise it once more, to 4vCPU/8GiB.
+// Each step passes its own 50% gate while the worker ends up at 25% utilization — exactly what
+// upsizeUtilFloor exists to prevent. The floor's own upsizing is disclosed separately, through
+// workerRequirement.upscaleNote.
+func minSourceSize(run []nodeGroupAccum) (vcpu uint32, memGiB uint64) {
+	for _, g := range run {
+		for _, n := range g.nodes {
+			v, m := sourceVcpuOf(n), n.Memory.TotalSize
+			if vcpu == 0 || v < vcpu {
+				vcpu = v
+			}
+			if memGiB == 0 || m < memGiB {
+				memGiB = m
+			}
+		}
+	}
+	return vcpu, memGiB
+}
+
+// mergeRun collapses a run of node groups into one, keeping the largest spec and image. Promoted
+// workers are recorded in the notes so the response can say what was consolidated and why.
+func mergeRun(run []nodeGroupAccum) nodeGroupAccum {
+	last := run[len(run)-1]
+	if len(run) == 1 {
+		return last
+	}
+
+	merged := nodeGroupAccum{specs: last.specs, imageId: last.imageId}
+	for _, g := range run {
+		merged.nodes = append(merged.nodes, g.nodes...)
+		merged.notes = append(merged.notes, g.notes...)
+	}
+
+	target := last.spec()
+	var promoted []string
+	for _, g := range run[:len(run)-1] {
+		promoted = append(promoted, fmt.Sprintf("%s (%dvCPU/%dGiB)",
+			g.spec().CspSpecName, g.spec().VCPU, uint64(g.spec().MemoryGiB)))
+	}
+	merged.notes = append(merged.notes, fmt.Sprintf(
+		"(consolidated into %s: %s merged in, so these workers share one node group instead of %d. "+
+			"They are provisioned larger than their source, which is the cost of the smaller node "+
+			"group count.)",
+		target.CspSpecName, strings.Join(promoted, ", "), len(run)))
+	return merged
 }
 
 // noteSlice wraps a possibly-empty note so a group starts with either zero or one note.
