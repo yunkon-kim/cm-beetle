@@ -4,8 +4,8 @@ import "time"
 
 // * To avoid circular dependencies, the following structs are copied from the cb-tumblebug framework.
 // TODO: When the cb-tumblebug framework is updated, we should synchronize these structs.
-// * Version: CB-Tumblebug v0.13.2 (commit: 2a7436583f889cc794ebf37d151362a2e684e871)
-// * Synchronized: 2026-09-01
+// * Version: CB-Tumblebug v0.13.3 (commit: af9ba2056d6f075e35e08c2ab32a0d90fd22b71a)
+// * Synchronized: 2026-09-08
 
 // InfraReq is struct for requirements to create Infra
 type InfraReq struct {

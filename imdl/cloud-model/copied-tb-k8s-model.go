@@ -4,8 +4,8 @@ import "time"
 
 // * To avoid circular dependencies, the following structs are copied from the cb-tumblebug framework.
 // TODO: When the cb-tumblebug framework is updated, we should synchronize these structs.
-// * Version: CB-Tumblebug v0.13.2 (commit: 2a7436583f889cc794ebf37d151362a2e684e871)
-// * Synchronized: 2026-09-01
+// * Version: CB-Tumblebug v0.13.3 (commit: af9ba2056d6f075e35e08c2ab32a0d90fd22b71a)
+// * Synchronized: 2026-09-08
 
 // IID is a struct to handle Identifier Information of CSP resources from CB-Spider.
 type IID struct {
@@ -407,8 +407,15 @@ type ExecCredential struct {
 }
 
 // ExecCredentialStatus holds credentials for the transport to use.
+// Mirrors the Kubernetes ExecCredentialStatus (client.authentication.k8s.io/v1).
 type ExecCredentialStatus struct {
 	Token string `json:"token"`
+
+	// ExpirationTimestamp is when the token stops being accepted, in RFC3339.
+	// It is relayed from CB-Spider and omitted when the CSP provides no expiry
+	// information, which the spec allows: clients then keep the credential until a 401
+	// forces a refresh.
+	ExpirationTimestamp *string `json:"expirationTimestamp,omitempty" example:"2026-09-02T05:15:00Z"`
 }
 
 // K8sClusterTokenResponse is the response struct for the K8sCluster token API.
