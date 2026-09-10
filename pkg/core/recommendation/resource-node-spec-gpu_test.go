@@ -17,37 +17,37 @@ func TestHasGpu(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:     "nil GPU",
-			node:     onpremmodel.NodeProperty{GPU: nil},
+			name:     "nil or empty GPUCards",
+			node:     onpremmodel.NodeProperty{GPUCards: nil},
 			expected: false,
 		},
 		{
-			name: "GPU present but count 0",
-			node: onpremmodel.NodeProperty{
-				GPU: &onpremmodel.GpuProperty{Count: 0},
-			},
+			name:     "empty GPUCards slice",
+			node:     onpremmodel.NodeProperty{GPUCards: []onpremmodel.GpuCardProperty{}},
 			expected: false,
 		},
 		{
-			name: "GPU present with count 1",
+			name: "GPU cards present with 1 card",
 			node: onpremmodel.NodeProperty{
-				GPU: &onpremmodel.GpuProperty{
-					Count:         1,
-					Vendor:        "NVIDIA",
-					Model:         "Tesla T4",
-					TotalMemoryGB: 16,
+				GPUCards: []onpremmodel.GpuCardProperty{
+					{
+						DriverIndex:   "0",
+						Vendor:        "NVIDIA",
+						Model:         "Tesla T4",
+						MemoryTotalGB: 16,
+					},
 				},
 			},
 			expected: true,
 		},
 		{
-			name: "GPU present with count 4",
+			name: "GPU cards present with 4 cards",
 			node: onpremmodel.NodeProperty{
-				GPU: &onpremmodel.GpuProperty{
-					Count:         4,
-					Vendor:        "NVIDIA",
-					Model:         "A100-SXM4-80GB",
-					TotalMemoryGB: 320,
+				GPUCards: []onpremmodel.GpuCardProperty{
+					{DriverIndex: "0", Vendor: "NVIDIA", Model: "A100-SXM4-80GB", MemoryTotalGB: 80},
+					{DriverIndex: "1", Vendor: "NVIDIA", Model: "A100-SXM4-80GB", MemoryTotalGB: 80},
+					{DriverIndex: "2", Vendor: "NVIDIA", Model: "A100-SXM4-80GB", MemoryTotalGB: 80},
+					{DriverIndex: "3", Vendor: "NVIDIA", Model: "A100-SXM4-80GB", MemoryTotalGB: 80},
 				},
 			},
 			expected: true,
@@ -61,6 +61,111 @@ func TestHasGpu(t *testing.T) {
 	}
 }
 
+func TestDetectGpuVendor(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"NVIDIA", GpuVendorNVIDIA},
+		{"nvidia", GpuVendorNVIDIA},
+		{"Tesla T4", GpuVendorNVIDIA},
+		{"A100-SXM4-80GB", GpuVendorNVIDIA},
+		{"NVIDIA A10G", GpuVendorNVIDIA},
+		{"NVIDIA L4", GpuVendorNVIDIA},
+		{"GeForce RTX 4090", GpuVendorNVIDIA},
+		{"Quadro RTX 6000", GpuVendorNVIDIA},
+		{"Tesla V100-PCIE-32GB", GpuVendorNVIDIA},
+		{"AMD", GpuVendorAMD},
+		{"Radeon Pro V520", GpuVendorAMD},
+		{"AMD INSTINCT MI300X", GpuVendorAMD},
+		{"Instinct MI350", GpuVendorAMD},
+		{"AMD Radeon Pro V620", GpuVendorAMD},
+		{"Intel", GpuVendorIntel},
+		{"Intel Gaudi3", GpuVendorIntel},
+		{"Intel Arc Pro A60", GpuVendorIntel},
+		{"Google TPU v4", GpuVendorGoogle},
+		{"TPU7X", GpuVendorGoogle},
+		{"UnknownVendor", GpuVendorOther},
+		{"", GpuVendorOther},
+		{"   ", GpuVendorOther},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			assert.Equal(t, tc.expected, detectGpuVendor(tc.input))
+		})
+	}
+}
+
+func TestRightSizeUpVramTier(t *testing.T) {
+	tests := []struct {
+		input    float32
+		expected float32
+	}{
+		{4, 8},
+		{8, 8},
+		{12, 16},
+		{16, 16},
+		{20, 24},
+		{24, 24},
+		{32, 32},
+		{40, 40},
+		{45, 48},
+		{70, 80},
+		{80, 80},
+		{100, 144},
+		{200, 288},
+		{300, 300}, // Beyond max tier: returns requested
+	}
+
+	for _, tc := range tests {
+		assert.Equal(t, tc.expected, rightSizeUpVramTier(tc.input))
+	}
+}
+
+func TestRightSizeUpGpuCount(t *testing.T) {
+	assert.Equal(t, uint32(1), rightSizeUpGpuCount(0))
+	assert.Equal(t, uint32(1), rightSizeUpGpuCount(1))
+	assert.Equal(t, uint32(2), rightSizeUpGpuCount(2))
+	assert.Equal(t, uint32(4), rightSizeUpGpuCount(3)) // 3 -> 4
+	assert.Equal(t, uint32(4), rightSizeUpGpuCount(4))
+	assert.Equal(t, uint32(8), rightSizeUpGpuCount(5)) // 5 -> 8
+	assert.Equal(t, uint32(8), rightSizeUpGpuCount(6)) // 6 -> 8
+	assert.Equal(t, uint32(8), rightSizeUpGpuCount(7)) // 7 -> 8
+	assert.Equal(t, uint32(8), rightSizeUpGpuCount(8))
+}
+
+func TestClusterGpuCards(t *testing.T) {
+	// Mixed cards: 2x NVIDIA A100 40GB, 1x NVIDIA T4 16GB, 1x AMD MI350 288GB
+	cards := []onpremmodel.GpuCardProperty{
+		{DriverIndex: "0", Vendor: "NVIDIA", Model: "A100", MemoryTotalGB: 40},
+		{DriverIndex: "1", Vendor: "NVIDIA", Model: "A100", MemoryTotalGB: 40},
+		{DriverIndex: "2", Vendor: "NVIDIA", Model: "T4", MemoryTotalGB: 16},
+		{DriverIndex: "card0", Vendor: "AMD", Model: "MI350", MemoryTotalGB: 288},
+	}
+
+	clusters := clusterGpuCards(cards)
+	require.Len(t, clusters, 3)
+
+	// Primary cluster must have highest Count (2x A100)
+	assert.Equal(t, "NVIDIA", clusters[0].Vendor)
+	assert.Equal(t, "A100", clusters[0].Model)
+	assert.Equal(t, uint32(2), clusters[0].Count)
+	assert.Equal(t, float32(40), clusters[0].MemoryTotalGB)
+
+	// Second cluster tie-broken by MemoryTotalGB desc (AMD MI350 288GB vs T4 16GB)
+	assert.Equal(t, "AMD", clusters[1].Vendor)
+	assert.Equal(t, "MI350", clusters[1].Model)
+	assert.Equal(t, uint32(1), clusters[1].Count)
+	assert.Equal(t, float32(288), clusters[1].MemoryTotalGB)
+
+	// Third cluster (T4 16GB)
+	assert.Equal(t, "NVIDIA", clusters[2].Vendor)
+	assert.Equal(t, "T4", clusters[2].Model)
+	assert.Equal(t, uint32(1), clusters[2].Count)
+	assert.Equal(t, float32(16), clusters[2].MemoryTotalGB)
+}
+
 func TestBuildGpuDeploymentPlan(t *testing.T) {
 	node := onpremmodel.NodeProperty{
 		MachineId: "gpu-node-01",
@@ -72,11 +177,9 @@ func TestBuildGpuDeploymentPlan(t *testing.T) {
 		Memory: onpremmodel.MemoryProperty{
 			TotalSize: 64,
 		},
-		GPU: &onpremmodel.GpuProperty{
-			Count:         2,
-			Vendor:        "NVIDIA",
-			Model:         "A100",
-			TotalMemoryGB: 80, // 40GB per GPU
+		GPUCards: []onpremmodel.GpuCardProperty{
+			{DriverIndex: "0", Vendor: "NVIDIA", Model: "A100", MemoryTotalGB: 40},
+			{DriverIndex: "1", Vendor: "NVIDIA", Model: "A100", MemoryTotalGB: 40},
 		},
 	}
 
@@ -125,10 +228,9 @@ func TestSortGpuByProximityWithCost_CountProximity(t *testing.T) {
 		MachineId: "node-2gpu",
 		CPU:       onpremmodel.CpuProperty{Cpus: 4, Threads: 2},
 		Memory:    onpremmodel.MemoryProperty{TotalSize: 32},
-		GPU: &onpremmodel.GpuProperty{
-			Count:         2,
-			Vendor:        "NVIDIA",
-			TotalMemoryGB: 48, // 24GB per GPU
+		GPUCards: []onpremmodel.GpuCardProperty{
+			{DriverIndex: "0", Vendor: "NVIDIA", MemoryTotalGB: 24},
+			{DriverIndex: "1", Vendor: "NVIDIA", MemoryTotalGB: 24},
 		},
 	}
 
@@ -174,10 +276,8 @@ func TestSortGpuByProximityWithCost_VramProximity(t *testing.T) {
 		MachineId: "node-a100-80gb",
 		CPU:       onpremmodel.CpuProperty{Cpus: 8, Threads: 2},
 		Memory:    onpremmodel.MemoryProperty{TotalSize: 64},
-		GPU: &onpremmodel.GpuProperty{
-			Count:         1,
-			Vendor:        "NVIDIA",
-			TotalMemoryGB: 80,
+		GPUCards: []onpremmodel.GpuCardProperty{
+			{DriverIndex: "0", Vendor: "NVIDIA", MemoryTotalGB: 80},
 		},
 	}
 
@@ -216,10 +316,8 @@ func TestSortGpuByProximityWithCost_VendorMatch(t *testing.T) {
 		MachineId: "node-nvidia",
 		CPU:       onpremmodel.CpuProperty{Cpus: 8, Threads: 2},
 		Memory:    onpremmodel.MemoryProperty{TotalSize: 64},
-		GPU: &onpremmodel.GpuProperty{
-			Count:         1,
-			Vendor:        "NVIDIA",
-			TotalMemoryGB: 32,
+		GPUCards: []onpremmodel.GpuCardProperty{
+			{DriverIndex: "0", Vendor: "NVIDIA", MemoryTotalGB: 32},
 		},
 	}
 
@@ -251,10 +349,9 @@ func TestSortGpuByProximityWithCost_VendorDominatesCountAndCost(t *testing.T) {
 		MachineId: "node-nvidia-2gpu",
 		CPU:       onpremmodel.CpuProperty{Cpus: 8, Threads: 2},
 		Memory:    onpremmodel.MemoryProperty{TotalSize: 64},
-		GPU: &onpremmodel.GpuProperty{
-			Count:         2,
-			Vendor:        "NVIDIA",
-			TotalMemoryGB: 48,
+		GPUCards: []onpremmodel.GpuCardProperty{
+			{DriverIndex: "0", Vendor: "NVIDIA", MemoryTotalGB: 24},
+			{DriverIndex: "1", Vendor: "NVIDIA", MemoryTotalGB: 24},
 		},
 	}
 
@@ -287,10 +384,8 @@ func TestSortGpuByProximityWithCost_CostTieBreak(t *testing.T) {
 		MachineId: "node-tie",
 		CPU:       onpremmodel.CpuProperty{Cpus: 4, Threads: 1},
 		Memory:    onpremmodel.MemoryProperty{TotalSize: 16},
-		GPU: &onpremmodel.GpuProperty{
-			Count:         1,
-			Vendor:        "NVIDIA",
-			TotalMemoryGB: 16,
+		GPUCards: []onpremmodel.GpuCardProperty{
+			{DriverIndex: "0", Vendor: "NVIDIA", MemoryTotalGB: 16},
 		},
 	}
 
@@ -319,4 +414,42 @@ func TestSortGpuByProximityWithCost_CostTieBreak(t *testing.T) {
 
 	assert.Equal(t, "spec-cheaper", specs[0].CspSpecName, "Cheaper spec must win tie-break")
 	assert.Equal(t, "spec-expensive", specs[1].CspSpecName)
+}
+
+func TestRecommendGpuNodeSpec_LiveTumblebug(t *testing.T) {
+	node := onpremmodel.NodeProperty{
+		MachineId: "gpu-node-live-test",
+		CPU: onpremmodel.CpuProperty{
+			Cpus:         8,
+			Threads:      1,
+			Architecture: "x86_64",
+		},
+		Memory: onpremmodel.MemoryProperty{
+			TotalSize: 32,
+		},
+		GPUCards: []onpremmodel.GpuCardProperty{
+			{
+				DriverIndex:   "0",
+				Vendor:        "NVIDIA",
+				Model:         "Tesla T4",
+				MemoryTotalGB: 16,
+			},
+		},
+	}
+
+	specs, count, err := RecommendNodeSpecs("aws", "ap-northeast-2", node, 3)
+	if err != nil {
+		t.Skipf("Skipping live Tumblebug test (daemon not reachable or error): %v", err)
+		return
+	}
+
+	if count == 0 {
+		t.Skip("Skipping assertion: no specs returned from live Tumblebug in region")
+		return
+	}
+
+	assert.NotEmpty(t, specs)
+	assert.GreaterOrEqual(t, count, 1)
+	assert.Equal(t, GpuVendorNVIDIA, detectGpuVendor(specs[0].AcceleratorModel))
+	assert.GreaterOrEqual(t, specs[0].AcceleratorCount, uint8(1))
 }

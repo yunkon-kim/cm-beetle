@@ -3991,7 +3991,7 @@ const docTemplate = `{
                     "[Recommendation] Infrastructure"
                 ],
                 "summary": "Recommend multiple infrastructure candidates for cloud migration",
-                "operationId": "RecommendVmInfraCandidates",
+                "operationId": "RecommendInfraCandidates",
                 "parameters": [
                     {
                         "description": "Specify the source infrastructure to be migrated",
@@ -4104,7 +4104,7 @@ const docTemplate = `{
                     "[Recommendation] Infrastructure"
                 ],
                 "summary": "(To be updated) Recommend an appropriate infrastructure (i.e., Infra, multi-cloud infrastructure) with defaults for cloud migration",
-                "operationId": "RecommendVMInfraWithDefaults",
+                "operationId": "RecommendInfraWithDefaults",
                 "parameters": [
                     {
                         "description": "Specify the source infrastructure to be migrated",
@@ -12605,31 +12605,56 @@ const docTemplate = `{
                 }
             }
         },
-        "onpremisemodel.GpuDetail": {
+        "onpremisemodel.GpuCardProperty": {
             "type": "object",
             "properties": {
-                "index": {
-                    "description": "Device index (e.g., 0, 1)",
-                    "type": "integer",
-                    "example": 0
+                "architecture": {
+                    "description": "GPU Microarchitecture (e.g., \"Ampere\", \"Turing\", \"CDNA 4\")",
+                    "type": "string",
+                    "example": "Ampere"
                 },
-                "memoryFree": {
+                "cudaVersion": {
+                    "description": "CUDA or compute API version (e.g., \"12.2\", \"ROCm 6.2\")",
+                    "type": "string",
+                    "example": "12.2"
+                },
+                "driverIndex": {
+                    "description": "Driver device index (e.g., \"0\", \"card0\", \"card10\")",
+                    "type": "string",
+                    "example": "0"
+                },
+                "driverVersion": {
+                    "description": "Installed driver version for this device",
+                    "type": "string",
+                    "example": "535.129.03"
+                },
+                "eccEnabled": {
+                    "description": "Whether Error-Correcting Code (ECC) memory protection is enabled",
+                    "type": "boolean",
+                    "example": true
+                },
+                "memoryFreeGB": {
                     "description": "Available/Free memory in GB",
                     "type": "number",
                     "example": 38
                 },
-                "memoryTotal": {
-                    "description": "Memory capacity in GB",
+                "memoryReservedGB": {
+                    "description": "VRAM reserved for ECC parity and system overhead in GB",
+                    "type": "number",
+                    "example": 2
+                },
+                "memoryTotalGB": {
+                    "description": "Total physical VRAM capacity in GB (Total + Reserved)",
                     "type": "number",
                     "example": 40
                 },
-                "memoryUsed": {
+                "memoryUsedGB": {
                     "description": "Used memory in GB",
                     "type": "number",
                     "example": 2
                 },
                 "model": {
-                    "description": "Specific model for this device",
+                    "description": "Specific model for this card/chip",
                     "type": "string",
                     "example": "NVIDIA A100-PCIE-40GB"
                 },
@@ -12638,63 +12663,23 @@ const docTemplate = `{
                     "type": "string",
                     "example": "0000:01:00.0"
                 },
-                "uuid": {
-                    "description": "Unique device UUID from driver (e.g., NVML GPU UUID)",
+                "slot": {
+                    "description": "Physical PCIe slot label if available (optional)",
                     "type": "string",
-                    "example": "GPU-12345678-abcd-ef01-2345-..."
-                }
-            }
-        },
-        "onpremisemodel.GpuProperty": {
-            "type": "object",
-            "required": [
-                "count"
-            ],
-            "properties": {
-                "architecture": {
-                    "description": "GPU Microarchitecture (e.g., \"Ampere\", \"Hopper\", \"Ada Lovelace\", \"Turing\", \"Volta\")",
-                    "type": "string",
-                    "example": "Ampere"
-                },
-                "count": {
-                    "description": "Number of physical GPU devices/chips",
-                    "type": "integer",
-                    "example": 1
-                },
-                "cudaVersion": {
-                    "description": "Supported/Installed CUDA version (e.g., \"12.2\", \"12.4\")",
-                    "type": "string",
-                    "example": "12.2"
-                },
-                "details": {
-                    "description": "Detailed information per individual physical GPU device",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/onpremisemodel.GpuDetail"
-                    }
-                },
-                "driverVersion": {
-                    "description": "Installed GPU driver version",
-                    "type": "string",
-                    "example": "535.129.03"
-                },
-                "model": {
-                    "description": "Primary GPU model name (e.g., \"Tesla T4\", \"NVIDIA A100-PCIE-40GB\", \"GeForce RTX 4090\")",
-                    "type": "string",
-                    "example": "NVIDIA A100-PCIE-40GB"
-                },
-                "totalMemoryGB": {
-                    "description": "Total VRAM across all devices in GB",
-                    "type": "number",
-                    "example": 40
+                    "example": "PCIe Slot 1"
                 },
                 "type": {
                     "description": "Accelerator type: \"GPU\", \"NPU\", \"TPU\" (defaults to \"GPU\")",
                     "type": "string",
                     "example": "GPU"
                 },
+                "uuid": {
+                    "description": "Unique device UUID from driver (e.g., NVML GPU UUID)",
+                    "type": "string",
+                    "example": "GPU-12345678-abcd-ef01-2345-..."
+                },
                 "vendor": {
-                    "description": "GPU Vendor/Manufacturer (e.g., \"NVIDIA\", \"AMD\", \"Intel\")",
+                    "description": "GPU Vendor (e.g., \"NVIDIA\", \"AMD\", \"Intel\")",
                     "type": "string",
                     "example": "NVIDIA"
                 }
@@ -12958,13 +12943,12 @@ const docTemplate = `{
                         "$ref": "#/definitions/onpremisemodel.FirewallRuleProperty"
                     }
                 },
-                "gpu": {
-                    "description": "GPU accelerator hardware information (optional)",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/onpremisemodel.GpuProperty"
-                        }
-                    ]
+                "gpuCards": {
+                    "description": "Physical GPU cards installed on the node",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/onpremisemodel.GpuCardProperty"
+                    }
                 },
                 "hostname": {
                     "type": "string"
@@ -16623,31 +16607,23 @@ const docTemplate = `{
             "name": "[Admin] API Request Management"
         },
         {
-            "description": "APIs for recommending optimal cloud infrastructure (VM specs, OS images, etc.) and NLBs (Managed Network Load Balancers)",
+            "description": "APIs for recommending optimal cloud infrastructure (node specs, OS images, etc.) and NLBs (Managed Network Load Balancers)",
             "name": "[Recommendation] Infrastructure"
-        },
-        {
-            "description": "APIs for recommending optimal Kubernetes cluster configuration for cloud migration",
-            "name": "[Recommendation] K8s Cluster"
-        },
-        {
-            "description": "APIs for migrating on-premise Kubernetes clusters to managed K8s services (EKS, AKS, GKE)",
-            "name": "[Migration] K8s Cluster"
-        },
-        {
-            "description": "APIs for recommending resources for K8s cluster (node group specs, node images, etc.)",
-            "name": "[Recommendation] Resources for K8s cluster"
         },
         {
             "description": "APIs for recommending resources for infrastructure (VNet, Security Group, etc.)",
             "name": "[Recommendation] Resources for infrastructure"
         },
         {
+            "description": "APIs for validating target cloud configuration and feasibility before migration",
+            "name": "[Validation] Target Cloud Configuration (Preview)"
+        },
+        {
             "description": "APIs for aligning and validating multi-cloud resource names",
             "name": "[Infrastructure] Resource Naming"
         },
         {
-            "description": "APIs for migrating on-premise infrastructure to cloud (VMs, VNets, etc.)",
+            "description": "APIs for migrating on-premise infrastructure to cloud (nodes, VNets, etc.)",
             "name": "[Migration] Infrastructure"
         },
         {
@@ -16655,28 +16631,52 @@ const docTemplate = `{
             "name": "[Migration] Resources for infrastructure"
         },
         {
-            "description": "APIs for summarizing and reporting infrastructure analysis results",
-            "name": "[Summary/Report] Infrastructure Analysis for Migration"
+            "description": "APIs for migrating managed network load balancers (NLB)",
+            "name": "[Migration] Managed Network Load Balancer (NLB) - preview"
+        },
+        {
+            "description": "APIs for recommending optimal Kubernetes cluster configuration for cloud migration",
+            "name": "[Recommendation] K8s Infrastructure"
+        },
+        {
+            "description": "APIs for recommending resources for K8s cluster (node group specs, node images, etc.)",
+            "name": "[Recommendation] Resources for K8s cluster"
+        },
+        {
+            "description": "APIs for migrating on-premise Kubernetes clusters to managed K8s services (EKS, AKS, GKE)",
+            "name": "[Migration] K8s Infrastructure"
         },
         {
             "description": "APIs for recommending managed object storage (e.g., AWS S3)",
             "name": "[Recommendation] Managed Object Storage"
         },
         {
-            "description": "APIs for migrating managed object storage (e.g.,AWS S3)",
+            "description": "APIs for migrating managed object storage (e.g., AWS S3)",
             "name": "[Migration] Managed Object Storage"
         },
         {
-            "description": "APIs for migrating managed network load balancers (NLB)",
-            "name": "[Migration] Managed Network Load Balancer (NLB) - preview"
+            "description": "APIs for recommending managed relational database services (e.g., AWS RDS)",
+            "name": "[Recommendation] Managed RDBMS"
+        },
+        {
+            "description": "APIs for migrating managed relational database services (e.g., AWS RDS)",
+            "name": "[Migration] Managed RDBMS"
         },
         {
             "description": "APIs for migrating data (Rsync, etc.)",
             "name": "[Migration] Data (incubating)"
         },
         {
+            "description": "APIs for summarizing and reporting infrastructure analysis results",
+            "name": "[Summary/Report] Infrastructure Analysis for Migration"
+        },
+        {
             "description": "Utility APIs for testing and debugging",
             "name": "[Test] Utilities"
+        },
+        {
+            "description": "Isolated test APIs for credential encryption and cloud object storage scanning",
+            "name": "[Minimal Test]"
         }
     ],
     "externalDocs": {

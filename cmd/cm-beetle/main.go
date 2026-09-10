@@ -155,53 +155,71 @@ func checkReadiness(url string) (bool, error) {
 // @externalDocs.url http://localhost:8056/tumblebug/api/index.html
 
 //// Order of tags in Swagger UI
+// 1. Admin & System Management
 // @tag.name [Admin] System management
 // @tag.description APIs for system management (health check, metrics, etc.)
 
 // @tag.name [Admin] API Request Management
 // @tag.description APIs for managing API requests (list, cancel, etc.)
 
+// 2. Computing Infrastructure & NLB (Recommendation -> Validation -> Migration)
 // @tag.name [Recommendation] Infrastructure
-// @tag.description APIs for recommending optimal cloud infrastructure (VM specs, OS images, etc.) and NLBs (Managed Network Load Balancers)
-
-// @tag.name [Recommendation] K8s Cluster
-// @tag.description APIs for recommending optimal Kubernetes cluster configuration for cloud migration
-
-// @tag.name [Migration] K8s Cluster
-// @tag.description APIs for migrating on-premise Kubernetes clusters to managed K8s services (EKS, AKS, GKE)
-
-// @tag.name [Recommendation] Resources for K8s cluster
-// @tag.description APIs for recommending resources for K8s cluster (node group specs, node images, etc.)
+// @tag.description APIs for recommending optimal cloud infrastructure (node specs, OS images, etc.) and NLBs (Managed Network Load Balancers)
 
 // @tag.name [Recommendation] Resources for infrastructure
 // @tag.description APIs for recommending resources for infrastructure (VNet, Security Group, etc.)
+
+// @tag.name [Validation] Target Cloud Configuration (Preview)
+// @tag.description APIs for validating target cloud configuration and feasibility before migration
 
 // @tag.name [Infrastructure] Resource Naming
 // @tag.description APIs for aligning and validating multi-cloud resource names
 
 // @tag.name [Migration] Infrastructure
-// @tag.description APIs for migrating on-premise infrastructure to cloud (VMs, VNets, etc.)
+// @tag.description APIs for migrating on-premise infrastructure to cloud (nodes, VNets, etc.)
 
 // @tag.name [Migration] Resources for infrastructure
 // @tag.description APIs for migrating resources for infrastructure (VNet, Security Group, etc.)
 
-// @tag.name [Summary/Report] Infrastructure Analysis for Migration
-// @tag.description APIs for summarizing and reporting infrastructure analysis results
+// @tag.name [Migration] Managed Network Load Balancer (NLB) - preview
+// @tag.description APIs for migrating managed network load balancers (NLB)
 
+// 3. Kubernetes (K8s) Infrastructure (Recommendation -> Migration)
+// @tag.name [Recommendation] K8s Infrastructure
+// @tag.description APIs for recommending optimal Kubernetes cluster configuration for cloud migration
+
+// @tag.name [Recommendation] Resources for K8s cluster
+// @tag.description APIs for recommending resources for K8s cluster (node group specs, node images, etc.)
+
+// @tag.name [Migration] K8s Infrastructure
+// @tag.description APIs for migrating on-premise Kubernetes clusters to managed K8s services (EKS, AKS, GKE)
+
+// 4. Managed Services & Middleware (Object Storage, RDBMS, Data)
 // @tag.name [Recommendation] Managed Object Storage
 // @tag.description APIs for recommending managed object storage (e.g., AWS S3)
 
 // @tag.name [Migration] Managed Object Storage
-// @tag.description APIs for migrating managed object storage (e.g.,AWS S3)
+// @tag.description APIs for migrating managed object storage (e.g., AWS S3)
 
-// @tag.name [Migration] Managed Network Load Balancer (NLB) - preview
-// @tag.description APIs for migrating managed network load balancers (NLB)
+// @tag.name [Recommendation] Managed RDBMS
+// @tag.description APIs for recommending managed relational database services (e.g., AWS RDS)
+
+// @tag.name [Migration] Managed RDBMS
+// @tag.description APIs for migrating managed relational database services (e.g., AWS RDS)
 
 // @tag.name [Migration] Data (incubating)
 // @tag.description APIs for migrating data (Rsync, etc.)
 
+// 5. Summary & Analysis Report
+// @tag.name [Summary/Report] Infrastructure Analysis for Migration
+// @tag.description APIs for summarizing and reporting infrastructure analysis results
+
+// 6. Test & Utilities
 // @tag.name [Test] Utilities
 // @tag.description Utility APIs for testing and debugging
+
+// @tag.name [Minimal Test]
+// @tag.description Isolated test APIs for credential encryption and cloud object storage scanning
 
 func main() {
 

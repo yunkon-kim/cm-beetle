@@ -24,19 +24,29 @@ func GetDefaultSpecsLimit() int {
 	return defaultSpecsLimit
 }
 
+// defaultArchitecture is the fallback CPU architecture when not specified.
+const defaultArchitecture = "x86_64"
+
 // RecommendNodeSpecs recommends appropriate node specs (VM specs) for the given node.
-// It orchestrates deployment plan construction, Tumblebug catalog search, CSP-specific filtering,
-// and delegates to specialized ranking strategies (GPU accelerator ranking or CPU/memory proximity ranking).
+// It delegates to specialized recommendation pipelines based on GPU presence:
+// - recommendGpuNodeSpec for nodes with GPU accelerators
+// - recommendCpuNodeSpec for general-purpose CPU nodes
 func RecommendNodeSpecs(csp string, region string, node onpremmodel.NodeProperty, limit int) (vmSpecList []cloudmodel.SpecInfo, length int, err error) {
-
-	const defaultArchitecture = "x86_64"
-	var emptyResp = []cloudmodel.SpecInfo{}
-
-	// Validate and set default limit
 	if limit <= 0 {
 		log.Warn().Msgf("Invalid limit value: %d, setting to default: %d", limit, defaultSpecsLimit)
 		limit = defaultSpecsLimit
 	}
+
+	if hasGpu(node) {
+		return recommendGpuNodeSpec(csp, region, node, limit)
+	}
+
+	return recommendCpuNodeSpec(csp, region, node, limit)
+}
+
+// recommendCpuNodeSpec recommends appropriate general-purpose CPU node specs for the given node.
+func recommendCpuNodeSpec(csp string, region string, node onpremmodel.NodeProperty, limit int) (vmSpecList []cloudmodel.SpecInfo, length int, err error) {
+	var emptyResp = []cloudmodel.SpecInfo{}
 
 	// Extract node specifications from source computing environment
 	cpus := node.CPU.Cpus
@@ -56,16 +66,6 @@ func RecommendNodeSpecs(csp string, region string, node onpremmodel.NodeProperty
 		architecture = defaultArchitecture
 	}
 
-	isGpu := hasGpu(node)
-	if isGpu {
-		log.Info().
-			Str("machineId", node.MachineId).
-			Uint32("gpuCount", node.GPU.Count).
-			Float32("totalMemoryGB", node.GPU.TotalMemoryGB).
-			Str("gpuModel", node.GPU.Model).
-			Msg("Detected GPU accelerator in node property; routing to GPU deployment plan and ranking")
-	}
-
 	// Iterative search with increasing rangeWeight to find suitable node specs
 	const (
 		initialRangeWeight = 1
@@ -73,28 +73,17 @@ func RecommendNodeSpecs(csp string, region string, node onpremmodel.NodeProperty
 	)
 
 	var (
-		nodeSpecInfoList     []tbmodel.SpecInfo
-		vcpusMin, vcpusMax   uint32
-		memoryMin, memoryMax uint32
+		nodeSpecInfoList []tbmodel.SpecInfo
 	)
 
 	// Retry loop: increase rangeWeight if no specs are found
 	for rangeWeight := initialRangeWeight; rangeWeight <= maxRangeWeight; rangeWeight++ {
-		var planToSearchProperNode string
-
-		if isGpu {
-			planToSearchProperNode, vcpusMin, vcpusMax, memoryMin, memoryMax = buildGpuDeploymentPlan(
-				node, csp, region, architecture, vcpusCalculated, memory, rangeWeight, limit,
-			)
-		} else {
-			planToSearchProperNode, vcpusMin, vcpusMax, memoryMin, memoryMax = buildCpuDeploymentPlan(
-				node, csp, region, architecture, vcpusCalculated, memory, rangeWeight, limit,
-			)
-		}
+		planToSearchProperNode, vcpusMin, vcpusMax, memoryMin, memoryMax := buildCpuDeploymentPlan(
+			node, csp, region, architecture, vcpusCalculated, memory, rangeWeight, limit,
+		)
 
 		log.Debug().
 			Str("machineId", node.MachineId).
-			Bool("isGpu", isGpu).
 			Int("rangeWeight", rangeWeight).
 			Uint32("originalCpu*Threads", vcpusCalculated).
 			Uint32("originalMemory", memory).
@@ -103,7 +92,7 @@ func RecommendNodeSpecs(csp string, region string, node onpremmodel.NodeProperty
 			Str("provider", providerName).
 			Str("region", regionName).
 			Str("architecture", architecture).
-			Msgf("Calculating node spec recommendations for machine: %s (attempt %d/%d)", node.MachineId, rangeWeight, maxRangeWeight)
+			Msgf("Calculating CPU node spec recommendations for machine: %s (attempt %d/%d)", node.MachineId, rangeWeight, maxRangeWeight)
 
 		log.Debug().Msgf("Deployment plan for machine %s: %s", node.MachineId, planToSearchProperNode)
 
@@ -157,20 +146,17 @@ func RecommendNodeSpecs(csp string, region string, node onpremmodel.NodeProperty
 					Int("rangeWeight", rangeWeight).
 					Msg("Filtered to KVM-compatible specs for NCP")
 			} else {
-				log.Debug().
+				log.Warn().
 					Str("machineId", node.MachineId).
 					Int("rangeWeight", rangeWeight).
-					Msg("No KVM-compatible specs found for NCP at this rangeWeight, will retry with increased range")
-				continue
+					Msg("No KVM-compatible specs found for NCP in this attempt")
 			}
 		}
 
-		// Check if any node specs were found
+		// If specs are found, break the retry loop
 		if len(nodeSpecInfoList) > 0 {
-			log.Info().
+			log.Debug().
 				Str("machineId", node.MachineId).
-				Bool("isGpu", isGpu).
-				Int("specsFound", len(nodeSpecInfoList)).
 				Int("rangeWeight", rangeWeight).
 				Uint32("vcpusCalculated", vcpusCalculated).
 				Uint32("memory", memory).
@@ -219,18 +205,13 @@ func RecommendNodeSpecs(csp string, region string, node onpremmodel.NodeProperty
 		return emptyResp, -1, fmt.Errorf("failed to convert node spec list model for machine %s: %w", node.MachineId, err)
 	}
 
-	// Sort specs by proximity with cost consideration: delegate to specialized strategy
-	if isGpu {
-		sortGpuByProximityWithCost(convertedNodeSpecList, node, providerName)
-	} else {
-		sortByProximityWithCost(convertedNodeSpecList, vcpusCalculated, memory, providerName, extractCpuVendor(node.CPU.Vendor))
-	}
+	// CPU-specific proximity ranking
+	sortByProximityWithCost(convertedNodeSpecList, vcpusCalculated, memory, providerName, extractCpuVendor(node.CPU.Vendor))
 
 	log.Info().
 		Str("machineId", node.MachineId).
-		Bool("isGpu", isGpu).
 		Int("recommendedSpecs", len(convertedNodeSpecList)).
-		Msgf("Successfully recommended %d node specifications for machine: %s", len(convertedNodeSpecList), node.MachineId)
+		Msgf("Successfully recommended %d CPU node specifications for machine: %s", len(convertedNodeSpecList), node.MachineId)
 
 	return convertedNodeSpecList, numOfNodeSpecs, nil
 }

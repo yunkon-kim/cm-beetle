@@ -4974,80 +4974,68 @@ definitions:
         description: Unique identifier for the machine (e.g., UUID)
         type: string
     type: object
-  onpremisemodel.GpuDetail:
+  onpremisemodel.GpuCardProperty:
     properties:
-      index:
-        description: Device index (e.g., 0, 1)
-        example: 0
-        type: integer
-      memoryFree:
+      architecture:
+        description: GPU Microarchitecture (e.g., "Ampere", "Turing", "CDNA 4")
+        example: Ampere
+        type: string
+      cudaVersion:
+        description: CUDA or compute API version (e.g., "12.2", "ROCm 6.2")
+        example: "12.2"
+        type: string
+      driverIndex:
+        description: Driver device index (e.g., "0", "card0", "card10")
+        example: "0"
+        type: string
+      driverVersion:
+        description: Installed driver version for this device
+        example: 535.129.03
+        type: string
+      eccEnabled:
+        description: Whether Error-Correcting Code (ECC) memory protection is enabled
+        example: true
+        type: boolean
+      memoryFreeGB:
         description: Available/Free memory in GB
         example: 38
         type: number
-      memoryTotal:
-        description: Memory capacity in GB
+      memoryReservedGB:
+        description: VRAM reserved for ECC parity and system overhead in GB
+        example: 2
+        type: number
+      memoryTotalGB:
+        description: Total physical VRAM capacity in GB (Total + Reserved)
         example: 40
         type: number
-      memoryUsed:
+      memoryUsedGB:
         description: Used memory in GB
         example: 2
         type: number
       model:
-        description: Specific model for this device
+        description: Specific model for this card/chip
         example: NVIDIA A100-PCIE-40GB
         type: string
       pciBusId:
         description: PCIe Bus identifier (e.g., "0000:01:00.0")
         example: "0000:01:00.0"
         type: string
-      uuid:
-        description: Unique device UUID from driver (e.g., NVML GPU UUID)
-        example: GPU-12345678-abcd-ef01-2345-...
+      slot:
+        description: Physical PCIe slot label if available (optional)
+        example: PCIe Slot 1
         type: string
-    type: object
-  onpremisemodel.GpuProperty:
-    properties:
-      architecture:
-        description: GPU Microarchitecture (e.g., "Ampere", "Hopper", "Ada Lovelace",
-          "Turing", "Volta")
-        example: Ampere
-        type: string
-      count:
-        description: Number of physical GPU devices/chips
-        example: 1
-        type: integer
-      cudaVersion:
-        description: Supported/Installed CUDA version (e.g., "12.2", "12.4")
-        example: "12.2"
-        type: string
-      details:
-        description: Detailed information per individual physical GPU device
-        items:
-          $ref: '#/definitions/onpremisemodel.GpuDetail'
-        type: array
-      driverVersion:
-        description: Installed GPU driver version
-        example: 535.129.03
-        type: string
-      model:
-        description: Primary GPU model name (e.g., "Tesla T4", "NVIDIA A100-PCIE-40GB",
-          "GeForce RTX 4090")
-        example: NVIDIA A100-PCIE-40GB
-        type: string
-      totalMemoryGB:
-        description: Total VRAM across all devices in GB
-        example: 40
-        type: number
       type:
         description: 'Accelerator type: "GPU", "NPU", "TPU" (defaults to "GPU")'
         example: GPU
         type: string
+      uuid:
+        description: Unique device UUID from driver (e.g., NVML GPU UUID)
+        example: GPU-12345678-abcd-ef01-2345-...
+        type: string
       vendor:
-        description: GPU Vendor/Manufacturer (e.g., "NVIDIA", "AMD", "Intel")
+        description: GPU Vendor (e.g., "NVIDIA", "AMD", "Intel")
         example: NVIDIA
         type: string
-    required:
-    - count
     type: object
   onpremisemodel.K8sClusterProperty:
     properties:
@@ -5229,10 +5217,11 @@ definitions:
         items:
           $ref: '#/definitions/onpremisemodel.FirewallRuleProperty'
         type: array
-      gpu:
-        allOf:
-        - $ref: '#/definitions/onpremisemodel.GpuProperty'
-        description: GPU accelerator hardware information (optional)
+      gpuCards:
+        description: Physical GPU cards installed on the node
+        items:
+          $ref: '#/definitions/onpremisemodel.GpuCardProperty'
+        type: array
       hostname:
         type: string
       interfaces:
@@ -10892,7 +10881,7 @@ paths:
         - **Non-empty**: TumbleBug sends this to Spider directly, bypassing the per-VM image DB lookup (prevents stale image failures, e.g., Alibaba alibase images).
         - **Empty**: TumbleBug uses `imageId` for the standard DB lookup path.
         - Pass the recommendation response as-is to the migration API to ensure the resolved image is used.
-      operationId: RecommendVmInfraCandidates
+      operationId: RecommendInfraCandidates
       parameters:
       - description: Specify the source infrastructure to be migrated
         in: body
@@ -10983,7 +10972,7 @@ paths:
         **[Response Field: `nodeGroups[].cspImageName`]** Set only when the spec-image review resolved a newer image than the DB cache.
         - **Non-empty**: TumbleBug sends this to Spider directly, bypassing the per-VM image DB lookup (prevents stale image failures, e.g., Alibaba alibase images).
         - **Empty**: TumbleBug uses `imageId` for the standard DB lookup path.
-      operationId: RecommendVMInfraWithDefaults
+      operationId: RecommendInfraWithDefaults
       parameters:
       - description: Specify the source infrastructure to be migrated
         in: body
@@ -12596,38 +12585,50 @@ tags:
   name: '[Admin] System management'
 - description: APIs for managing API requests (list, cancel, etc.)
   name: '[Admin] API Request Management'
-- description: APIs for recommending optimal cloud infrastructure (VM specs, OS images,
-    etc.) and NLBs (Managed Network Load Balancers)
+- description: APIs for recommending optimal cloud infrastructure (node specs, OS
+    images, etc.) and NLBs (Managed Network Load Balancers)
   name: '[Recommendation] Infrastructure'
-- description: APIs for recommending optimal Kubernetes cluster configuration for
-    cloud migration
-  name: '[Recommendation] K8s Cluster'
-- description: APIs for migrating on-premise Kubernetes clusters to managed K8s services
-    (EKS, AKS, GKE)
-  name: '[Migration] K8s Cluster'
-- description: APIs for recommending resources for K8s cluster (node group specs,
-    node images, etc.)
-  name: '[Recommendation] Resources for K8s cluster'
 - description: APIs for recommending resources for infrastructure (VNet, Security
     Group, etc.)
   name: '[Recommendation] Resources for infrastructure'
+- description: APIs for validating target cloud configuration and feasibility before
+    migration
+  name: '[Validation] Target Cloud Configuration (Preview)'
 - description: APIs for aligning and validating multi-cloud resource names
   name: '[Infrastructure] Resource Naming'
-- description: APIs for migrating on-premise infrastructure to cloud (VMs, VNets,
+- description: APIs for migrating on-premise infrastructure to cloud (nodes, VNets,
     etc.)
   name: '[Migration] Infrastructure'
 - description: APIs for migrating resources for infrastructure (VNet, Security Group,
     etc.)
   name: '[Migration] Resources for infrastructure'
-- description: APIs for summarizing and reporting infrastructure analysis results
-  name: '[Summary/Report] Infrastructure Analysis for Migration'
-- description: APIs for recommending managed object storage (e.g., AWS S3)
-  name: '[Recommendation] Managed Object Storage'
-- description: APIs for migrating managed object storage (e.g.,AWS S3)
-  name: '[Migration] Managed Object Storage'
 - description: APIs for migrating managed network load balancers (NLB)
   name: '[Migration] Managed Network Load Balancer (NLB) - preview'
+- description: APIs for recommending optimal Kubernetes cluster configuration for
+    cloud migration
+  name: '[Recommendation] K8s Infrastructure'
+- description: APIs for recommending resources for K8s cluster (node group specs,
+    node images, etc.)
+  name: '[Recommendation] Resources for K8s cluster'
+- description: APIs for migrating on-premise Kubernetes clusters to managed K8s services
+    (EKS, AKS, GKE)
+  name: '[Migration] K8s Infrastructure'
+- description: APIs for recommending managed object storage (e.g., AWS S3)
+  name: '[Recommendation] Managed Object Storage'
+- description: APIs for migrating managed object storage (e.g., AWS S3)
+  name: '[Migration] Managed Object Storage'
+- description: APIs for recommending managed relational database services (e.g., AWS
+    RDS)
+  name: '[Recommendation] Managed RDBMS'
+- description: APIs for migrating managed relational database services (e.g., AWS
+    RDS)
+  name: '[Migration] Managed RDBMS'
 - description: APIs for migrating data (Rsync, etc.)
   name: '[Migration] Data (incubating)'
+- description: APIs for summarizing and reporting infrastructure analysis results
+  name: '[Summary/Report] Infrastructure Analysis for Migration'
 - description: Utility APIs for testing and debugging
   name: '[Test] Utilities'
+- description: Isolated test APIs for credential encryption and cloud object storage
+    scanning
+  name: '[Minimal Test]'

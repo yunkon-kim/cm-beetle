@@ -310,8 +310,8 @@ func RunServer(port string) {
 	gRecommendation.Use(middlewares.TumblebugInitChecker)
 
 	// Recommendation APIs for infrastructure
-	gRecommendation.POST("/infra", controller.RecommendVmInfraCandidates)
-	gRecommendation.POST("/infraWithDefaults", controller.RecommendVMInfraWithDefaults)
+	gRecommendation.POST("/infra", controller.RecommendInfraCandidates)
+	gRecommendation.POST("/infraWithDefaults", controller.RecommendInfraWithDefaults)
 
 	// Recommendation APIs for infrastructure across multiple target clouds (cross-CSP comparison)
 	gRecommendation.POST("/multiInfra", controller.RecommendMultiInfraCandidates)

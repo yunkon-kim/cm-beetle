@@ -44,8 +44,8 @@ type RecommendInfraWithDefaultsResponse struct {
 	cloudmodel.RecommendedInfraDynamicList
 }
 
-// RecommendVMInfraWithDefaults godoc
-// @ID RecommendVMInfraWithDefaults
+// RecommendInfraWithDefaults godoc
+// @ID RecommendInfraWithDefaults
 // @Summary (To be updated) Recommend an appropriate infrastructure (i.e., Infra, multi-cloud infrastructure) with defaults for cloud migration
 // @Description Recommend an appropriate infrastructure (i.e., Infra, multi-cloud infrastructure) with defaults for cloud migration
 // @Description
@@ -71,7 +71,7 @@ type RecommendInfraWithDefaultsResponse struct {
 // @Failure 500 {object} model.ApiResponse[any]
 // @Failure 503 {object} model.ApiResponse[any] "Too many concurrent async jobs; retry later or without Prefer: respond-async"
 // @Router /recommendation/infraWithDefaults [post]
-func RecommendVMInfraWithDefaults(c echo.Context) error {
+func RecommendInfraWithDefaults(c echo.Context) error {
 
 	// [Input]
 	desiredCsp := c.QueryParam("desiredCsp")
@@ -112,7 +112,7 @@ func RecommendVMInfraWithDefaults(c echo.Context) error {
 	if preferRespondAsync(c) {
 		reqID := c.Request().Header.Get(echo.HeaderXRequestID)
 		started := common.RunAsync(reqID, func() (cloudmodel.RecommendedInfraDynamicList, error) {
-			return recommendation.RecommendVmInfraWithDefaults(csp, region, sourceInfra)
+			return recommendation.RecommendInfraWithDefaults(csp, region, sourceInfra)
 		})
 		if !started {
 			c.Response().Header().Set("Retry-After", "5")
@@ -130,7 +130,7 @@ func RecommendVMInfraWithDefaults(c echo.Context) error {
 	}
 
 	// [Process]
-	recommendedInfraInfoList, err := recommendation.RecommendVmInfraWithDefaults(csp, region, sourceInfra)
+	recommendedInfraInfoList, err := recommendation.RecommendInfraWithDefaults(csp, region, sourceInfra)
 	// recommendedInfraInfoList.TargetInfra.Name = "mci101"
 
 	// [Ouput]
@@ -151,8 +151,8 @@ type RecommendInfraResponse struct {
 	cloudmodel.RecommendedInfra
 }
 
-// RecommendVmInfraCandidates godoc
-// @ID RecommendVmInfraCandidates
+// RecommendInfraCandidates godoc
+// @ID RecommendInfraCandidates
 // @Summary Recommend multiple infrastructure candidates for cloud migration
 // @Description Recommend best-effort infrastructure (Infra) candidates for migrating on-premise workloads to cloud environments.
 // @Description
@@ -194,7 +194,7 @@ type RecommendInfraResponse struct {
 // @Failure 503 {object} model.ApiResponse[any] "Too many requests - retry after the given time"
 // @Header 503 {string} Retry-After "Seconds until client should retry"
 // @Router /recommendation/infra [post]
-func RecommendVmInfraCandidates(c echo.Context) error {
+func RecommendInfraCandidates(c echo.Context) error {
 
 	// [Input]
 	desiredCsp := c.QueryParam("desiredCsp")
@@ -251,10 +251,16 @@ func RecommendVmInfraCandidates(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, model.SimpleErrorResponse("Invalid provider or region"))
 	}
 
+	// Select specialized core recommendation pipeline based on GPU presence
+	recommender := recommendation.RecommendInfraCandidates
+	if recommendation.HasAnyGpu(sourceInfra) {
+		recommender = recommendation.RecommendGpuInfraCandidates
+	}
+
 	if preferRespondAsync(c) {
 		reqID := c.Request().Header.Get(echo.HeaderXRequestID)
 		started := common.RunAsync(reqID, func() ([]cloudmodel.RecommendedInfra, error) {
-			return recommendation.RecommendVmInfraCandidates(csp, region, sourceInfra, limit, minMatchRate)
+			return recommender(csp, region, sourceInfra, limit, minMatchRate)
 		})
 		if !started {
 			c.Response().Header().Set("Retry-After", "5")
@@ -272,7 +278,7 @@ func RecommendVmInfraCandidates(c echo.Context) error {
 	}
 
 	// [Process]
-	recommendedInfraCandidates, err := recommendation.RecommendVmInfraCandidates(csp, region, sourceInfra, limit, minMatchRate)
+	recommendedInfraCandidates, err := recommender(csp, region, sourceInfra, limit, minMatchRate)
 	if err != nil {
 		if retryAfter, ok := ratelimit.RetryAfter(err); ok {
 			c.Response().Header().Set("Retry-After", fmt.Sprintf("%d", ratelimit.RetryAfterSeconds(retryAfter)))

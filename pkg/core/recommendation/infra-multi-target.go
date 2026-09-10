@@ -25,16 +25,20 @@ const (
 	multiInfraCandidatesPerTarget = 1
 )
 
-// singleTargetRecommender is the shape shared by RecommendVmInfraCandidates and
+// singleTargetRecommender is the shape shared by RecommendInfraCandidates and
 // RecommendInfraWithNlbCandidates. Letting the multi-target orchestrator take either as a
 // parameter avoids duplicating validation, sequencing, or sentinel-item logic per variant.
 type singleTargetRecommender func(desiredCsp, desiredRegion string, srcInfra onpremmodel.OnpremInfra, limit int, minMatchRate float64) ([]cloudmodel.RecommendedInfra, error)
 
 // RecommendMultiInfraCandidates recommends the single best-match infrastructure candidate for
-// each target CSP/region pair, for cross-CSP comparison. Composes RecommendVmInfraCandidates;
-// no matching/ranking logic is duplicated here.
+// each target CSP/region pair, for cross-CSP comparison. Composes RecommendInfraCandidates or
+// RecommendGpuInfraCandidates based on GPU presence; no matching/ranking logic is duplicated here.
 func RecommendMultiInfraCandidates(pairs []cloudmodel.CloudProperty, srcInfra onpremmodel.OnpremInfra, minMatchRate float64) ([]cloudmodel.RecommendedInfra, error) {
-	return recommendPerTarget(pairs, srcInfra, minMatchRate, RecommendVmInfraCandidates)
+	recommender := RecommendInfraCandidates
+	if HasAnyGpu(srcInfra) {
+		recommender = RecommendGpuInfraCandidates
+	}
+	return recommendPerTarget(pairs, srcInfra, minMatchRate, recommender)
 }
 
 // RecommendMultiInfraWithNlbCandidates is the NLB-aware counterpart of
@@ -68,7 +72,7 @@ func recommendPerTarget(pairs []cloudmodel.CloudProperty, srcInfra onpremmodel.O
 			continue
 		}
 		if len(candidates) == 0 {
-			// Matches the status vocabulary of RecommendVmInfraCandidates/RecommendInfraWithNlbCandidates
+			// Matches the status vocabulary of RecommendInfraCandidates/RecommendInfraWithNlbCandidates
 			// ("highly-matched" / "partially-matched" / "nothing-to-recommend"), not the older
 			// RecommendationStatus enum ("none"/"partial"/"ok") used by the dynamic-list recommender.
 			results = append(results, cloudmodel.RecommendedInfra{

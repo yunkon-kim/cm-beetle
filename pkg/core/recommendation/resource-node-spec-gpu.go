@@ -6,14 +6,128 @@ import (
 	"sort"
 	"strings"
 
+	tbmodel "github.com/cloud-barista/cb-tumblebug/src/core/model"
 	cloudmodel "github.com/cloud-barista/cm-beetle/imdl/cloud-model"
 	onpremmodel "github.com/cloud-barista/cm-beetle/imdl/on-premise-model"
+	tbclient "github.com/cloud-barista/cm-beetle/pkg/client/tumblebug"
+	"github.com/cloud-barista/cm-beetle/pkg/modelconv"
 	"github.com/rs/zerolog/log"
 )
 
-// hasGpu returns true if the node property contains at least one physical GPU accelerator.
+// Canonical GPU Vendor identities
+const (
+	GpuVendorNVIDIA = "NVIDIA"
+	GpuVendorAMD    = "AMD"
+	GpuVendorIntel  = "Intel"
+	GpuVendorGoogle = "Google"
+	GpuVendorOther  = "Other"
+)
+
+// Metric names for Tumblebug deployment plans
+const (
+	MetricAcceleratorCount    = "acceleratorCount"
+	MetricAcceleratorMemoryGB = "acceleratorMemoryGB"
+	MetricAcceleratorType     = "acceleratorType"
+	MetricAcceleratorModel    = "acceleratorModel"
+	AcceleratorTypeGPU        = "gpu"
+)
+
+// gpuVendorAliases maps model tokens to canonical GPU vendor names.
+// Kept in code matching the established cpuVendorAliases pattern in resource-node-spec.go.
+var gpuVendorAliases = []struct {
+	token  string
+	vendor string
+}{
+	{"nvidia", GpuVendorNVIDIA},
+	{"tesla", GpuVendorNVIDIA},
+	{"geforce", GpuVendorNVIDIA},
+	{"quadro", GpuVendorNVIDIA},
+	{"a100", GpuVendorNVIDIA},
+	{"h100", GpuVendorNVIDIA},
+	{"b200", GpuVendorNVIDIA},
+	{"l40", GpuVendorNVIDIA},
+	{"l4", GpuVendorNVIDIA},
+	{"a10", GpuVendorNVIDIA},
+	{"t4", GpuVendorNVIDIA},
+	{"v100", GpuVendorNVIDIA},
+	{"k80", GpuVendorNVIDIA},
+	{"m60", GpuVendorNVIDIA},
+	{"amd", GpuVendorAMD},
+	{"radeon", GpuVendorAMD},
+	{"instinct", GpuVendorAMD},
+	{"mi300", GpuVendorAMD},
+	{"mi350", GpuVendorAMD},
+	{"mi250", GpuVendorAMD},
+	{"mi210", GpuVendorAMD},
+	{"mi100", GpuVendorAMD},
+	{"v520", GpuVendorAMD},
+	{"v620", GpuVendorAMD},
+	{"v710", GpuVendorAMD},
+	{"intel", GpuVendorIntel},
+	{"gaudi", GpuVendorIntel},
+	{"xeon phi", GpuVendorIntel},
+	{"arc", GpuVendorIntel},
+	{"google", GpuVendorGoogle},
+	{"tpu", GpuVendorGoogle},
+}
+
+// detectGpuVendor canonicalizes arbitrary GPU vendor or model names into a standard vendor identifier.
+func detectGpuVendor(raw string) string {
+	lower := strings.ToLower(strings.TrimSpace(raw))
+	for _, entry := range gpuVendorAliases {
+		if strings.Contains(lower, entry.token) {
+			return entry.vendor
+		}
+	}
+	return GpuVendorOther
+}
+
+// hasGpu returns true if the node property contains at least one physical GPU accelerator card.
 func hasGpu(node onpremmodel.NodeProperty) bool {
-	return node.GPU != nil && node.GPU.Count > 0
+	return len(node.GPUCards) > 0
+}
+
+// GpuCardCluster represents a homogeneous cluster of identical GPU cards installed on the node.
+type GpuCardCluster struct {
+	Vendor        string
+	Model         string
+	MemoryTotalGB float32
+	Count         uint32
+}
+
+// clusterGpuCards groups identical physical GPU cards by (Vendor, Model, MemoryTotalGB).
+func clusterGpuCards(cards []onpremmodel.GpuCardProperty) []GpuCardCluster {
+	if len(cards) == 0 {
+		return nil
+	}
+
+	clusters := make([]GpuCardCluster, 0)
+	indexMap := make(map[string]int)
+
+	for _, card := range cards {
+		key := fmt.Sprintf("%s|%s|%.1f", strings.ToLower(card.Vendor), strings.ToLower(card.Model), card.MemoryTotalGB)
+		if idx, found := indexMap[key]; found {
+			clusters[idx].Count++
+		} else {
+			indexMap[key] = len(clusters)
+			clusters = append(clusters, GpuCardCluster{
+				Vendor:        card.Vendor,
+				Model:         card.Model,
+				MemoryTotalGB: card.MemoryTotalGB,
+				Count:         1,
+			})
+		}
+	}
+
+	// Sort clusters: highest card count first, then highest VRAM
+	sort.Slice(clusters, func(i, j int) bool {
+		if clusters[i].Count != clusters[j].Count {
+			return clusters[i].Count > clusters[j].Count
+		}
+		return clusters[i].MemoryTotalGB > clusters[j].MemoryTotalGB
+	})
+
+	return clusters
 }
 
 // buildGpuDeploymentPlan constructs the deployment plan JSON for GPU accelerator node spec recommendation.
@@ -76,17 +190,13 @@ func buildGpuDeploymentPlan(
 	vcpusMin, vcpusMax, memoryMin, memoryMax := calculateOptimalRange(vcpusCalculated, memory, rangeWeight)
 
 	targetCount := uint32(1)
-	if node.GPU != nil && node.GPU.Count > 0 {
-		targetCount = node.GPU.Count
-	}
-
 	targetVramPerGpu := float32(0)
-	if node.GPU != nil {
-		if node.GPU.TotalMemoryGB > 0 && node.GPU.Count > 0 {
-			targetVramPerGpu = node.GPU.TotalMemoryGB / float32(node.GPU.Count)
-		} else if len(node.GPU.Details) > 0 && node.GPU.Details[0].MemoryTotal > 0 {
-			targetVramPerGpu = node.GPU.Details[0].MemoryTotal
-		}
+
+	clusters := clusterGpuCards(node.GPUCards)
+	if len(clusters) > 0 {
+		primary := clusters[0]
+		targetCount = primary.Count
+		targetVramPerGpu = primary.MemoryTotalGB
 	}
 
 	providerName := strings.ToLower(csp)
@@ -161,12 +271,12 @@ func gpuVendorMatch(ctx gpuRankingContext, a, b cloudmodel.SpecInfo) int {
 		return 0
 	}
 
-	modelA := strings.ToLower(a.AcceleratorModel)
-	modelB := strings.ToLower(b.AcceleratorModel)
-	vendor := strings.ToLower(ctx.targetVendor)
+	targetCanonical := detectGpuVendor(ctx.targetVendor)
+	vendorA := detectGpuVendor(a.AcceleratorModel)
+	vendorB := detectGpuVendor(b.AcceleratorModel)
 
-	matchA := strings.Contains(modelA, vendor)
-	matchB := strings.Contains(modelB, vendor)
+	matchA := (vendorA == targetCanonical && vendorA != GpuVendorOther)
+	matchB := (vendorB == targetCanonical && vendorB != GpuVendorOther)
 
 	if matchA && !matchB {
 		return -1
@@ -196,19 +306,15 @@ func sortGpuByProximityWithCost(vmSpecs []cloudmodel.SpecInfo, node onpremmodel.
 	}
 
 	targetCount := uint8(1)
-	if node.GPU != nil && node.GPU.Count > 0 {
-		targetCount = uint8(node.GPU.Count)
-	}
-
 	targetVramPerGpu := float32(0)
 	targetVendor := ""
-	if node.GPU != nil {
-		targetVendor = node.GPU.Vendor
-		if node.GPU.TotalMemoryGB > 0 && node.GPU.Count > 0 {
-			targetVramPerGpu = node.GPU.TotalMemoryGB / float32(node.GPU.Count)
-		} else if len(node.GPU.Details) > 0 && node.GPU.Details[0].MemoryTotal > 0 {
-			targetVramPerGpu = node.GPU.Details[0].MemoryTotal
-		}
+
+	clusters := clusterGpuCards(node.GPUCards)
+	if len(clusters) > 0 {
+		primary := clusters[0]
+		targetCount = uint8(primary.Count)
+		targetVramPerGpu = primary.MemoryTotalGB
+		targetVendor = primary.Vendor
 	}
 
 	// Calculate host vCPUs
@@ -261,4 +367,168 @@ func sortGpuByProximityWithCost(vmSpecs []cloudmodel.SpecInfo, node onpremmodel.
 		}
 		return false
 	})
+}
+
+// standardVramTiers defines common discrete VRAM capacities in public cloud GPU instances (in GB).
+var standardVramTiers = []float32{8, 16, 24, 32, 40, 48, 80, 96, 144, 192, 288}
+
+// rightSizeUpVramTier sizes a requested VRAM up to the nearest standard cloud GPU tier.
+func rightSizeUpVramTier(vram float32) float32 {
+	for _, tier := range standardVramTiers {
+		if tier >= vram {
+			return tier
+		}
+	}
+	return vram
+}
+
+// rightSizeUpGpuCount sizes non-standard physical GPU card counts up to standard power-of-two CSP topologies.
+func rightSizeUpGpuCount(count uint32) uint32 {
+	switch {
+	case count <= 1:
+		return 1
+	case count == 2:
+		return 2
+	case count <= 4:
+		return 4
+	default:
+		return 8
+	}
+}
+
+// recommendGpuNodeSpec recommends appropriate GPU-accelerated node specs for the given node.
+// It executes a targeted, single-shot query with discrete VRAM and topology right-sizing up,
+// followed by multi-dimensional proximity ranking (Vendor > Count > VRAM > Host L1 > Cost).
+func recommendGpuNodeSpec(
+	csp string,
+	region string,
+	node onpremmodel.NodeProperty,
+	limit int,
+) ([]cloudmodel.SpecInfo, int, error) {
+	emptyResp := []cloudmodel.SpecInfo{}
+
+	clusters := clusterGpuCards(node.GPUCards)
+	if len(clusters) == 0 {
+		return emptyResp, 0, fmt.Errorf("no GPU cards found for machine %s", node.MachineId)
+	}
+
+	primary := clusters[0]
+	targetCount := rightSizeUpGpuCount(primary.Count)
+	targetVram := rightSizeUpVramTier(primary.MemoryTotalGB)
+
+	providerName := strings.ToLower(csp)
+	regionName := strings.ToLower(region)
+
+	architecture := node.CPU.Architecture
+	if architecture == "" || architecture == "amd64" {
+		architecture = defaultArchitecture
+	}
+
+	// Single-shot targeted query plan (simple, deterministic, no convoluted fallback loop)
+	const planTemplate = `{
+		"filter": {
+			"policy": [
+				{
+					"condition": [{"operand": "%d", "operator": ">="}],
+					"metric": "acceleratorCount"
+				},
+				{
+					"condition": [{"operand": "%.1f", "operator": ">="}],
+					"metric": "acceleratorMemoryGB"
+				},
+				{
+					"condition": [{"operand": "%s"}],
+					"metric": "providerName"
+				},
+				{
+					"condition": [{"operand": "%s"}],
+					"metric": "regionName"
+				},
+				{
+					"condition": [{"operand": "%s"}],
+					"metric": "architecture"
+				}
+			]
+		},
+		"limit": %d,
+		"priority": {
+			"policy": [{"metric": "cost"}]
+		}
+	}`
+
+	fetchLimit := limit * 3
+	if fetchLimit < 15 {
+		fetchLimit = 15
+	}
+
+	plan := fmt.Sprintf(planTemplate,
+		targetCount,
+		targetVram,
+		providerName,
+		regionName,
+		architecture,
+		fetchLimit,
+	)
+
+	log.Debug().
+		Str("machineId", node.MachineId).
+		Uint32("targetGpuCount", targetCount).
+		Float32("targetVramGB", targetVram).
+		Str("provider", providerName).
+		Str("region", regionName).
+		Str("architecture", architecture).
+		Msg("Querying Tumblebug for GPU node spec recommendations")
+
+	rawSpecs, err := tbclient.NewSession().InfraRecommendSpec(plan)
+	if err != nil {
+		log.Error().Err(err).
+			Str("machineId", node.MachineId).
+			Str("provider", providerName).
+			Str("region", regionName).
+			Msg("Failed to get GPU node spec recommendations from Tumblebug")
+		return emptyResp, -1, fmt.Errorf("failed to get GPU node spec recommendations for machine %s: %w", node.MachineId, err)
+	}
+
+	// Filter specs with valid cost
+	validSpecs := make([]tbmodel.SpecInfo, 0, len(rawSpecs))
+	for _, spec := range rawSpecs {
+		if spec.CostPerHour >= 0 {
+			validSpecs = append(validSpecs, spec)
+		}
+	}
+
+	if len(validSpecs) == 0 {
+		log.Warn().
+			Str("machineId", node.MachineId).
+			Uint32("targetGpuCount", targetCount).
+			Float32("targetVramGB", targetVram).
+			Msg("No GPU node specs found matching requirements")
+		return emptyResp, 0, nil
+	}
+
+	// Convert model types with validation
+	convertedSpecs, err := modelconv.ConvertWithValidation[[]tbmodel.SpecInfo, []cloudmodel.SpecInfo](validSpecs)
+	if err != nil {
+		log.Error().Err(err).
+			Str("machineId", node.MachineId).
+			Msg("Failed to convert GPU node spec list model")
+		return emptyResp, -1, fmt.Errorf("failed to convert GPU node spec list model for machine %s: %w", node.MachineId, err)
+	}
+
+	// Rank GPU specs (Vendor Match > Count > VRAM > Host L1 > Cost)
+	sortGpuByProximityWithCost(convertedSpecs, node, csp)
+
+	// Apply requested limit
+	if limit > 0 && len(convertedSpecs) > limit {
+		convertedSpecs = convertedSpecs[:limit]
+	}
+
+	if len(clusters) > 1 {
+		log.Info().
+			Str("machineId", node.MachineId).
+			Int("heterogeneousClusters", len(clusters)).
+			Msg("Heterogeneous GPU node detected: primary cluster recommended; secondary cluster(s) require multi-node decomposition")
+	}
+
+	return convertedSpecs, len(convertedSpecs), nil
 }

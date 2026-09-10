@@ -19,16 +19,91 @@ AI/ML, 대규모 언어 모델(LLM), 딥러닝 학습/추론, HPC(고성능 컴�
 
 ## 2. 도메인 및 프로퍼티 비교 분석 (Domain Analysis)
 
-### 2.1 CB-Tumblebug & CB-Spider 가속기 모델
-CB-Tumblebug은 멀티 클라우드 가상머신 스펙 카탈로그에서 가속기를 다음과 같이 추상화하여 관리합니다:
+### 2.1 CB-Tumblebug & CB-Spider 가속기 모델 및 실측 API 검증
+
+CB-Tumblebug은 멀티 클라우드 가상머신 스펙 카탈로그에서 가속기를 다음과 같이 추상화하여 관리하며, `/tumblebug/recommendSpecOptions` 및 `POST /tumblebug/recommendSpec` 호출을 통해 실측 확인되었습니다:
 
 | TB 모델 (`SpecInfo` / `SpecSummary`) | 타입 | 대표 예시 | 설명 |
 | :--- | :--- | :--- | :--- |
-| `acceleratorType` | `string` | `"GPU"`, `"NPU"`, `"TPU"` | 가속기 유형 구분 |
-| `acceleratorModel` | `string` | `"NVIDIA A100-SXM4-80GB"`, `"Tesla T4"` | CSP가 제공하는 가속기 칩셋 모델명 |
-| `acceleratorCount` | `uint8` | `1`, `2`, `4`, `8` | 인스턴스에 장착된 가속기 칩/장치 수 |
-| `acceleratorMemoryGB` | `float32` | `16.0`, `24.0`, `40.0`, `80.0` | 가속기 메모리 크기 (VRAM GB) |
+| `acceleratorType` | `string` | `"gpu"` | 가속기 유형 구분 (TB 카탈로그 상 `"gpu"`) |
+| `acceleratorModel` | `string` | `"NVIDIA A100"`, `"NVIDIA Tesla T4"`, `"AMD RADEON PRO V520"` | CSP가 제공하는 표준 가속기 모델명 |
+| `acceleratorCount` | `uint8` | `1`, `2`, `4`, `8` | 인스턴스에 장착된 물리 가속기 카드 수 |
+| `acceleratorMemoryGB` | `float32` | `9.0`, `16.0`, `17.0`, `24.0`, `40.0`, `80.0` | 가속기 메모리 크기 (VRAM GB 단위) |
 | `isGPUImage` / `isBasicGpuImage` (`ImageInfo`) | `bool` | `true`, `false` | GPU 드라이버 및 런타임 탑재 여부 |
+
+#### A. `/tumblebug/recommendSpecOptions` 실측 파라미터 및 카탈로그 값
+* **필터 가용 메트릭 (`filter.availableMetrics`)**:
+  `id`, `providerName`, `regionName`, `cspSpecName`, `architecture`, `acceleratorModel`, `acceleratorType`, `description`, `vCPU`, `memoryGiB`, `acceleratorCount`, `acceleratorMemoryGB`, `costPerHour`, `evaluationScore01`
+* **우선순위 가용 정책 (`priority.availableMetrics`)**:
+  `"cost"` (최저비용 우선), `"performance"` (고성능 우선), `"location"`, `"latency"`, `"random"`
+* **가용 가속기 모델 카탈로그 (`availableValues.acceleratorModel`)**:
+  - **NVIDIA**: `"NVIDIA A10"`, `"NVIDIA A10G"`, `"NVIDIA A100"`, `"NVIDIA A100P"`, `"NVIDIA H100"`, `"NVIDIA H100 MEGA"`, `"NVIDIA H200"`, `"NVIDIA L4"`, `"NVIDIA L20"`, `"NVIDIA L40S"`, `"NVIDIA T4"`, `"NVIDIA T4G"`, `"NVIDIA TESLA A100"`, `"NVIDIA TESLA T4"`, `"NVIDIA Tesla V100"`, `"NVIDIA B200"`, `"NVIDIA B300"`, `"NVIDIA GB200"` 등
+  - **AMD**: `"AMD INSTINCT"`, `"AMD MI300X"`, `"AMD RADEON PRO V520"`, `"AMD RADEON PRO V620"`, `"AMD RADEON PRO V710"`
+  - **Intel**: `"Intel GAUDI3"`
+  - **Google**: `"TPU7X"`, `"CT3"`, `"CT5L"`, `"CT5P"`
+
+#### B. `POST /tumblebug/recommendSpec` 주요 CSP별 실제 추천 반환 예시 (Live Response)
+
+* **AWS (`ap-northeast-2`)**:
+  ```json
+  {
+    "cspSpecName": "g5g.xlarge",
+    "providerName": "aws",
+    "regionName": "ap-northeast-2",
+    "vCPU": 4,
+    "memoryGiB": 8,
+    "costPerHour": 0.5166,
+    "acceleratorModel": "NVIDIA T4G",
+    "acceleratorCount": 1,
+    "acceleratorMemoryGB": 17,
+    "acceleratorType": "gpu"
+  }
+  ```
+* **Azure (`koreacentral`)**:
+  ```json
+  {
+    "cspSpecName": "Standard_NC4as_T4_v3",
+    "providerName": "azure",
+    "regionName": "koreacentral",
+    "vCPU": 4,
+    "memoryGiB": 27.34,
+    "costPerHour": 0.647,
+    "acceleratorModel": "NVIDIA Tesla T4",
+    "acceleratorCount": 1,
+    "acceleratorMemoryGB": 16,
+    "acceleratorType": "gpu"
+  }
+  ```
+* **GCP (`asia-northeast3`)**:
+  ```json
+  {
+    "cspSpecName": "g2-standard-4",
+    "providerName": "gcp",
+    "regionName": "asia-northeast3",
+    "vCPU": 4,
+    "memoryGiB": 15.625,
+    "costPerHour": 0.9077,
+    "acceleratorModel": "NVIDIA L4",
+    "acceleratorCount": 1,
+    "acceleratorMemoryGB": 24,
+    "acceleratorType": "gpu"
+  }
+  ```
+* **AWS AMD GPU (`us-east-1`)**:
+  ```json
+  {
+    "cspSpecName": "g4ad.xlarge",
+    "providerName": "aws",
+    "regionName": "us-east-1",
+    "vCPU": 4,
+    "memoryGiB": 16,
+    "costPerHour": 0.3785,
+    "acceleratorModel": "AMD RADEON PRO V520",
+    "acceleratorCount": 1,
+    "acceleratorMemoryGB": 9,
+    "acceleratorType": "gpu"
+  }
+  ```
 
 ### 2.2 온프레미스 / 서버 하드웨어 GPU 텔레메트리
 온프레미스 물리/가상 서버에서 `nvidia-smi`, `NVML`, `GPUtil`, `lspci`, `rocm-smi`를 통해 추출 가능한 원천 데이터:
@@ -93,57 +168,48 @@ type NodeProperty struct {
 	RoutingTable  []RouteProperty            `json:"routingTable"`
 	FirewallTable []FirewallRuleProperty     `json:"firewallTable,omitempty"`
 	OS            OsProperty                 `json:"os"`
-	GPU           *GpuProperty               `json:"gpu,omitempty"`                          // GPU accelerator hardware information (optional)
+	GPUCards      []GpuCardProperty          `json:"gpuCards,omitempty"`                     // GPU accelerator hardware information (optional)
 }
 
-// GpuProperty represents GPU and accelerator hardware information of an on-premise node.
-type GpuProperty struct {
-	Count         uint32      `json:"count" validate:"required" example:"1"`           // Number of physical GPU devices/chips
-	Vendor        string      `json:"vendor,omitempty" example:"NVIDIA"`               // GPU Vendor/Manufacturer (e.g., "NVIDIA", "AMD", "Intel")
-	Model         string      `json:"model,omitempty" example:"NVIDIA A100-PCIE-40GB"` // Primary GPU model name (e.g., "Tesla T4", "NVIDIA A100-PCIE-40GB", "GeForce RTX 4090")
-	Type          string      `json:"type,omitempty" example:"GPU"`                    // Accelerator type: "GPU", "NPU", "TPU" (defaults to "GPU")
-	TotalMemoryGB float32     `json:"totalMemoryGB,omitempty" example:"40"`            // Total VRAM across all devices in GB
-	DriverVersion string      `json:"driverVersion,omitempty" example:"535.129.03"`    // Installed GPU driver version
-	CudaVersion   string      `json:"cudaVersion,omitempty" example:"12.2"`            // Supported/Installed CUDA version (e.g., "12.2", "12.4")
-	Architecture  string      `json:"architecture,omitempty" example:"Ampere"`         // GPU Microarchitecture (e.g., "Ampere", "Hopper", "Ada Lovelace", "Turing", "Volta")
-	Details       []GpuDetail `json:"details,omitempty"`                               // Detailed information per individual physical GPU device
-}
-
-// GpuDetail represents detailed hardware attributes of an individual physical GPU device.
-type GpuDetail struct {
-	Index       uint32  `json:"index" example:"0"`                                         // Device index (e.g., 0, 1)
-	Uuid        string  `json:"uuid,omitempty" example:"GPU-12345678-abcd-ef01-2345-..."`  // Unique device UUID from driver (e.g., NVML GPU UUID)
-	Model       string  `json:"model,omitempty" example:"NVIDIA A100-PCIE-40GB"`           // Specific model for this device
-	PciBusId    string  `json:"pciBusId,omitempty" example:"0000:01:00.0"`                 // PCIe Bus identifier (e.g., "0000:01:00.0")
-	MemoryTotal float32 `json:"memoryTotal,omitempty" example:"40"`                        // Memory capacity in GB
-	MemoryFree  float32 `json:"memoryFree,omitempty" example:"38"`                         // Available/Free memory in GB
-	MemoryUsed  float32 `json:"memoryUsed,omitempty" example:"2"`                          // Used memory in GB
+// GpuCardProperty represents an individual physical GPU card or accelerator module installed in an on-premise node.
+type GpuCardProperty struct {
+	DriverIndex   string  `json:"driverIndex,omitempty" example:"0"`                         // Driver device index (e.g., "0", "card0", "card10")
+	Uuid          string  `json:"uuid,omitempty" example:"GPU-12345678-abcd-ef01-2345-..."`  // Unique device UUID from driver
+	Vendor        string  `json:"vendor,omitempty" example:"NVIDIA"`                         // GPU Vendor/Manufacturer (e.g., "NVIDIA", "AMD", "Intel")
+	Model         string  `json:"model,omitempty" example:"NVIDIA A100-PCIE-40GB"`           // Specific GPU model name
+	Type          string  `json:"type,omitempty" example:"GPU"`                              // Accelerator type: "GPU", "NPU", "TPU"
+	Architecture  string  `json:"architecture,omitempty" example:"Ampere"`                   // GPU Microarchitecture
+	DriverVersion string  `json:"driverVersion,omitempty" example:"535.129.03"`              // Installed GPU driver version
+	CudaVersion   string  `json:"cudaVersion,omitempty" example:"12.2"`                      // Supported/Installed CUDA version
+	Slot             string  `json:"slot,omitempty" example:"PCIe Slot 1"`                      // Physical or logical PCIe slot location
+	PciBusId         string  `json:"pciBusId,omitempty" example:"0000:01:00.0"`                 // PCIe Bus identifier
+	ECCEnabled       bool    `json:"eccEnabled,omitempty" example:"true"`                      // Whether Error-Correcting Code (ECC) memory protection is enabled
+	MemoryTotalGB    float32 `json:"memoryTotalGb,omitempty" example:"40"`                      // Total physical VRAM capacity in GB (Total + Reserved)
+	MemoryReservedGB float32 `json:"memoryReservedGb,omitempty" example:"2"`                   // VRAM reserved for ECC parity and system overhead in GB
+	MemoryFreeGB     float32 `json:"memoryFreeGb,omitempty" example:"38"`                       // Available/Free VRAM in GB
+	MemoryUsedGB     float32 `json:"memoryUsedGb,omitempty" example:"2"`                        // Used VRAM in GB
 }
 ```
 
 ### 3.2 TypeScript 인터페이스 ([ui/src/types/migration.ts](file:///home/ubuntu/dev/cloud-barista/cm-beetle/ui/src/types/migration.ts))
 
 ```typescript
-export interface GpuDetail {
-  index: number;
+export interface GpuCardProperty {
+  driverIndex?: string;
   uuid?: string;
-  model?: string;
-  pciBusId?: string;
-  memoryTotal?: number;
-  memoryFree?: number;
-  memoryUsed?: number;
-}
-
-export interface GpuProperty {
-  count: number;
   vendor?: string;
   model?: string;
   type?: string;
-  totalMemoryGB?: number;
+  architecture?: string;
   driverVersion?: string;
   cudaVersion?: string;
-  architecture?: string;
-  details?: GpuDetail[];
+  slot?: string;
+  pciBusId?: string;
+  eccEnabled?: boolean;
+  memoryTotalGB?: number;
+  memoryReservedGB?: number;
+  memoryFreeGB?: number;
+  memoryUsedGB?: number;
 }
 
 export interface OnpremNode {
@@ -157,7 +223,7 @@ export interface OnpremNode {
   routingTable: RouteProperty[];
   firewallTable: FirewallRule[];
   os: OsProperty;
-  gpu?: GpuProperty | null;
+  gpuCards?: GpuCardProperty[] | null;
 }
 ```
 

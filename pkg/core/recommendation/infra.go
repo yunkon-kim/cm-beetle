@@ -147,8 +147,8 @@ func IsValidCspAndRegion(csp string, region string) (bool, error) {
 	return isValid, nil
 }
 
-// RecommendVmInfraWithDefaults an appropriate multi-cloud infrastructure (MCI) for cloud migration
-func RecommendVmInfraWithDefaults(desiredCsp string, desiredRegion string, srcInfra onpremmodel.OnpremInfra) (cloudmodel.RecommendedInfraDynamicList, error) {
+// RecommendInfraWithDefaults recommends an appropriate target infrastructure for cloud migration using defaults
+func RecommendInfraWithDefaults(desiredCsp string, desiredRegion string, srcInfra onpremmodel.OnpremInfra) (cloudmodel.RecommendedInfraDynamicList, error) {
 
 	// var emptyResp RecommendedVmInfraInfoList
 	var recommendedVmInfraInfoList cloudmodel.RecommendedInfraDynamicList
@@ -287,8 +287,8 @@ func RecommendVmInfraWithDefaults(desiredCsp string, desiredRegion string, srcIn
 	return recommendedVmInfraInfoList, nil
 }
 
-// RecommendVmInfra an appropriate multi-cloud infrastructure (MCI) for cloud migration
-func RecommendVmInfra(desiredCsp string, desiredRegion string, srcInfra onpremmodel.OnpremInfra) (cloudmodel.RecommendedInfra, error) {
+// RecommendInfra recommends an appropriate target infrastructure for cloud migration
+func RecommendInfra(desiredCsp string, desiredRegion string, srcInfra onpremmodel.OnpremInfra) (cloudmodel.RecommendedInfra, error) {
 
 	// var emptyResp RecommendedVmInfra
 	var recommendedVmInfra cloudmodel.RecommendedInfra
@@ -571,8 +571,8 @@ func RecommendVmInfra(desiredCsp string, desiredRegion string, srcInfra onpremmo
 	return recommendedVmInfra, nil
 }
 
-// RecommendVmInfraCandidates an appropriate multi-cloud infrastructure (MCI) for cloud migration
-func RecommendVmInfraCandidates(desiredCsp string, desiredRegion string, srcInfra onpremmodel.OnpremInfra, limit int, minMatchRate float64) ([]cloudmodel.RecommendedInfra, error) {
+// RecommendInfraCandidates recommends appropriate target infrastructure candidates for cloud migration
+func RecommendInfraCandidates(desiredCsp string, desiredRegion string, srcInfra onpremmodel.OnpremInfra, limit int, minMatchRate float64) ([]cloudmodel.RecommendedInfra, error) {
 
 	// * To recommend multiple infra candidates (i.e., multiple VM spec and OS image combinations),
 	// * this function estimates, recommends or just generates vNets, subnets, SSH key pair, and security groups

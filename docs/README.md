@@ -48,5 +48,7 @@ Documentation site for CM-Beetle, computing infrastructure migration.
 
 ## Developer Resources
 
+- [Unit Comparison Across Components](unit-comparison-across-components.md) – Unit standards across CB sub-systems and GPU memory normalization rationale.
+- [GPU Recommendation Pipeline Plan](plan/gpu-recommendation-pipeline-plan.md) – Architecture and design for GPU-equipped server recommendation.
 - [Tumblebug Call Pacer](tumblebug-call-pacer.md) – How CM-Beetle stays under CB-Tumblebug's rate limit, and how to maintain it.
 - [AI Context](ai-context-for-us.md) – Context information for AI-assisted development.

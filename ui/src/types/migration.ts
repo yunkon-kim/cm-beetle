@@ -66,26 +66,22 @@ export interface OsProperty {
   versionId: string;
 }
 
-export interface GpuDetail {
-  index: number;
+export interface GpuCardProperty {
+  driverIndex?: string;
   uuid?: string;
-  model?: string;
-  pciBusId?: string;
-  memoryTotal?: number;
-  memoryFree?: number;
-  memoryUsed?: number;
-}
-
-export interface GpuProperty {
-  count: number;
   vendor?: string;
   model?: string;
   type?: string;
-  totalMemoryGB?: number;
+  architecture?: string;
   driverVersion?: string;
   cudaVersion?: string;
-  architecture?: string;
-  details?: GpuDetail[];
+  slot?: string;
+  pciBusId?: string;
+  eccEnabled?: boolean;
+  memoryTotalGB?: number;
+  memoryReservedGB?: number;
+  memoryFreeGB?: number;
+  memoryUsedGB?: number;
 }
 
 export interface OnpremNode {
@@ -99,7 +95,7 @@ export interface OnpremNode {
   routingTable: RouteProperty[];
   firewallTable: FirewallRule[];
   os: OsProperty;
-  gpu?: GpuProperty | null;
+  gpuCards?: GpuCardProperty[] | null;
 }
 
 export interface GatewayProperty {

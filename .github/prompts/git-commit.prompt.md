@@ -83,7 +83,7 @@ When staging changes for a release (version bump, dependency updates, test resul
 
 **Body Requirements:**
 
-- Maximum 3 bullet points, each line ≤ 40 characters
+- Maximum 5 bullet points, each line ≤ 60 characters
 - Each bullet point MUST start with a capital letter (e.g., `- Add ...`, `- Implement ...`)
 - Focus on functional impact for migration/recommendation features
 - Essential changes only, omit implementation details
@@ -241,8 +241,8 @@ git status --porcelain
 - [ ] Title under 50 characters
 - [ ] Uses imperative mood throughout
 - [ ] Scope matches CM-Beetle component structure
-- [ ] Body contains essential changes only (3-5 bullet points max)
-- [ ] Each bullet point under 50 characters
+- [ ] Body contains essential changes only (5 bullet points max)
+- [ ] Each bullet point under 60 characters
 - [ ] Focuses on migration/recommendation functionality impact
 - [ ] Ready for `git commit -m` usage
 
