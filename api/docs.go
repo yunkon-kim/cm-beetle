@@ -4526,6 +4526,17 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "rightSizeUp",
+                            "dividing",
+                            "auto"
+                        ],
+                        "type": "string",
+                        "description": "Sizing policy for GPU+NLB topology resolution (default: rightSizeUp)",
+                        "name": "sizingPolicy",
+                        "in": "query"
+                    },
+                    {
                         "type": "string",
                         "description": "Unique request ID (auto-generated if not provided). Used for tracking request status and correlating logs.",
                         "name": "X-Request-Id",
@@ -4556,6 +4567,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Invalid request parameters",
+                        "schema": {
+                            "$ref": "#/definitions/model.ApiResponse-any"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable hardware/topology conflict under selected sizingPolicy",
                         "schema": {
                             "$ref": "#/definitions/model.ApiResponse-any"
                         }
@@ -4733,6 +4750,17 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "rightSizeUp",
+                            "dividing",
+                            "auto"
+                        ],
+                        "type": "string",
+                        "description": "Sizing policy for GPU+NLB topology resolution (default: rightSizeUp)",
+                        "name": "sizingPolicy",
+                        "in": "query"
+                    },
+                    {
                         "description": "Source infra including NLBs (from cm-honeybee)",
                         "name": "request",
                         "in": "body",
@@ -4772,6 +4800,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/model.ApiResponse-any"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable hardware/topology conflict under selected sizingPolicy",
                         "schema": {
                             "$ref": "#/definitions/model.ApiResponse-any"
                         }
@@ -5351,6 +5385,17 @@ const docTemplate = `{
                         "type": "number",
                         "description": "Minimum match rate for highly-matched classification (default: 85.0, range: 0-100)",
                         "name": "minMatchRate",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "rightSizeUp",
+                            "dividing",
+                            "auto"
+                        ],
+                        "type": "string",
+                        "description": "Sizing policy for GPU+NLB topology resolution (default: rightSizeUp)",
+                        "name": "sizingPolicy",
                         "in": "query"
                     },
                     {

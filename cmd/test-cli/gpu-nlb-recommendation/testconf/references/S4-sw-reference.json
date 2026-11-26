@@ -1,0 +1,13 @@
+{
+  "scenarioId": "S4",
+  "title": "Case 4 - Homogeneous T4 GPU NLB + Multi-GPU Standalone Host",
+  "hardwareCase": 4,
+  "requiredSwMetadataForSwAwareTools": ["role", "listeningPorts.processName", "gpuDeviceAffinity"],
+  "swAwarePreferredPolicy": "auto",
+  "expectedNodeGroupCount": 3,
+  "expectedNlbCount": 1,
+  "expectedGpuVmCount": 4,
+  "expectedCpuVmCount": 0,
+  "expectCrossVendorConflictUnderRightSizeUp": false,
+  "swAwareFailsWhenSwAbsent": true
+}

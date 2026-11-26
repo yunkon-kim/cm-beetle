@@ -1,0 +1,101 @@
+{
+  "onpremiseInfraModel": {
+    "network": {
+      "ipv4Networks": {
+        "cidrBlocks": ["10.0.7.0/24"],
+        "defaultGateways": [{"interfaceName": "ens5", "ip": "10.0.7.1", "machineId": "s7-cpu-1"}]
+      },
+      "ipv6Networks": {}
+    },
+    "nodes": [
+      {
+        "hostname": "s7-cpu-1",
+        "machineId": "s7-cpu-1",
+        "cpu": {"architecture": "x86_64", "cpus": 1, "cores": 2, "threads": 2},
+        "memory": {"type": "DDR4", "totalSize": 16},
+        "rootDisk": {"label": "/", "type": "SSD", "totalSize": 50},
+        "interfaces": [{"name": "ens5", "ipv4CidrBlocks": ["10.0.7.11/24"], "state": "up"}],
+        "routingTable": [{"destination": "0.0.0.0/0", "gateway": "10.0.7.1", "interface": "ens5"}],
+        "firewallTable": [{"srcCIDR": "0.0.0.0/0", "srcPorts": "*", "dstCIDR": "0.0.0.0/0", "dstPorts": "8000", "protocol": "tcp", "direction": "inbound", "action": "allow"}],
+        "os": {"prettyName": "Ubuntu 22.04.3 LTS", "id": "ubuntu", "versionId": "22.04", "versionCodename": "jammy"}
+      },
+      {
+        "hostname": "s7-cpu-2",
+        "machineId": "s7-cpu-2",
+        "cpu": {"architecture": "x86_64", "cpus": 1, "cores": 2, "threads": 2},
+        "memory": {"type": "DDR4", "totalSize": 16},
+        "rootDisk": {"label": "/", "type": "SSD", "totalSize": 50},
+        "interfaces": [{"name": "ens5", "ipv4CidrBlocks": ["10.0.7.12/24"], "state": "up"}],
+        "routingTable": [{"destination": "0.0.0.0/0", "gateway": "10.0.7.1", "interface": "ens5"}],
+        "firewallTable": [{"srcCIDR": "0.0.0.0/0", "srcPorts": "*", "dstCIDR": "0.0.0.0/0", "dstPorts": "8000", "protocol": "tcp", "direction": "inbound", "action": "allow"}],
+        "os": {"prettyName": "Ubuntu 22.04.3 LTS", "id": "ubuntu", "versionId": "22.04", "versionCodename": "jammy"}
+      },
+      {
+        "hostname": "s7-t4-1",
+        "machineId": "s7-t4-1",
+        "cpu": {"architecture": "x86_64", "cpus": 1, "cores": 4, "threads": 2},
+        "memory": {"type": "DDR4", "totalSize": 32},
+        "rootDisk": {"label": "/", "type": "SSD", "totalSize": 100},
+        "interfaces": [{"name": "ens5", "ipv4CidrBlocks": ["10.0.7.13/24"], "state": "up"}],
+        "routingTable": [{"destination": "0.0.0.0/0", "gateway": "10.0.7.1", "interface": "ens5"}],
+        "firewallTable": [{"srcCIDR": "0.0.0.0/0", "srcPorts": "*", "dstCIDR": "0.0.0.0/0", "dstPorts": "8000", "protocol": "tcp", "direction": "inbound", "action": "allow"}],
+        "os": {"prettyName": "Ubuntu 22.04.3 LTS", "id": "ubuntu", "versionId": "22.04", "versionCodename": "jammy"},
+        "gpuCards": [{"driverIndex": "0", "vendor": "NVIDIA", "model": "NVIDIA T4", "memoryTotalGB": 16}]
+      },
+      {
+        "hostname": "s7-t4-2",
+        "machineId": "s7-t4-2",
+        "cpu": {"architecture": "x86_64", "cpus": 1, "cores": 4, "threads": 2},
+        "memory": {"type": "DDR4", "totalSize": 32},
+        "rootDisk": {"label": "/", "type": "SSD", "totalSize": 100},
+        "interfaces": [{"name": "ens5", "ipv4CidrBlocks": ["10.0.7.14/24"], "state": "up"}],
+        "routingTable": [{"destination": "0.0.0.0/0", "gateway": "10.0.7.1", "interface": "ens5"}],
+        "firewallTable": [{"srcCIDR": "0.0.0.0/0", "srcPorts": "*", "dstCIDR": "0.0.0.0/0", "dstPorts": "8000", "protocol": "tcp", "direction": "inbound", "action": "allow"}],
+        "os": {"prettyName": "Ubuntu 22.04.3 LTS", "id": "ubuntu", "versionId": "22.04", "versionCodename": "jammy"},
+        "gpuCards": [{"driverIndex": "0", "vendor": "NVIDIA", "model": "NVIDIA T4", "memoryTotalGB": 16}]
+      },
+      {
+        "hostname": "s7-l4-1",
+        "machineId": "s7-l4-1",
+        "cpu": {"architecture": "x86_64", "cpus": 1, "cores": 8, "threads": 2},
+        "memory": {"type": "DDR4", "totalSize": 64},
+        "rootDisk": {"label": "/", "type": "SSD", "totalSize": 100},
+        "interfaces": [{"name": "ens5", "ipv4CidrBlocks": ["10.0.7.15/24"], "state": "up"}],
+        "routingTable": [{"destination": "0.0.0.0/0", "gateway": "10.0.7.1", "interface": "ens5"}],
+        "firewallTable": [{"srcCIDR": "0.0.0.0/0", "srcPorts": "*", "dstCIDR": "0.0.0.0/0", "dstPorts": "8000", "protocol": "tcp", "direction": "inbound", "action": "allow"}],
+        "os": {"prettyName": "Ubuntu 22.04.3 LTS", "id": "ubuntu", "versionId": "22.04", "versionCodename": "jammy"},
+        "gpuCards": [{"driverIndex": "0", "vendor": "NVIDIA", "model": "NVIDIA L4", "memoryTotalGB": 24}]
+      },
+      {
+        "hostname": "s7-mgmt-1",
+        "machineId": "s7-mgmt-1",
+        "cpu": {"architecture": "x86_64", "cpus": 1, "cores": 2, "threads": 2},
+        "memory": {"type": "DDR4", "totalSize": 16},
+        "rootDisk": {"label": "/", "type": "SSD", "totalSize": 50},
+        "interfaces": [{"name": "ens5", "ipv4CidrBlocks": ["10.0.7.21/24"], "state": "up"}],
+        "routingTable": [{"destination": "0.0.0.0/0", "gateway": "10.0.7.1", "interface": "ens5"}],
+        "firewallTable": [{"srcCIDR": "0.0.0.0/0", "srcPorts": "*", "dstCIDR": "0.0.0.0/0", "dstPorts": "22", "protocol": "tcp", "direction": "inbound", "action": "allow"}],
+        "os": {"prettyName": "Ubuntu 22.04.3 LTS", "id": "ubuntu", "versionId": "22.04", "versionCodename": "jammy"}
+      }
+    ],
+    "nlbs": [
+      {
+        "software": "haproxy",
+        "listener": {"bindAddress": "*", "port": 8080, "protocol": "tcp"},
+        "backend": {
+          "name": "s7-tier3-pool",
+          "balance": "roundrobin",
+          "protocol": "tcp",
+          "servers": [
+            {"name": "c1", "ip": "10.0.7.11", "port": 8000},
+            {"name": "c2", "ip": "10.0.7.12", "port": 8000},
+            {"name": "t1", "ip": "10.0.7.13", "port": 8000},
+            {"name": "t2", "ip": "10.0.7.14", "port": 8000},
+            {"name": "l1", "ip": "10.0.7.15", "port": 8000}
+          ]
+        },
+        "healthCheck": {"enabled": true, "protocol": "tcp", "port": 8000, "interval": 10, "timeout": 5, "threshold": 3}
+      }
+    ]
+  }
+}

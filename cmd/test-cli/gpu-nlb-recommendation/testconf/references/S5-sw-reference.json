@@ -1,0 +1,13 @@
+{
+  "scenarioId": "S5",
+  "title": "Compound A - Intra-Node Heterogeneous GPU (L4 + T4) Inside NLB",
+  "hardwareCase": 3,
+  "requiredSwMetadataForSwAwareTools": ["role", "listeningPorts.processName", "multiGpuBindingMap"],
+  "swAwarePreferredPolicy": "dividing",
+  "expectedNodeGroupCount": 2,
+  "expectedNlbCount": 2,
+  "expectedGpuVmCount": 3,
+  "expectedCpuVmCount": 0,
+  "expectCrossVendorConflictUnderRightSizeUp": false,
+  "swAwareFailsWhenSwAbsent": true
+}

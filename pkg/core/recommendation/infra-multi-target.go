@@ -47,9 +47,28 @@ func RecommendMultiInfraCandidates(ctx context.Context, pairs []cloudmodel.Cloud
 // RecommendMultiInfraWithNlbCandidates is the NLB-aware counterpart of
 // RecommendMultiInfraCandidates, composing RecommendInfraWithNlbCandidates per target.
 func RecommendMultiInfraWithNlbCandidates(ctx context.Context, pairs []cloudmodel.CloudProperty, srcInfra onpremmodel.OnpremInfra, minMatchRate float64) ([]cloudmodel.RecommendedInfra, error) {
+	return RecommendMultiInfraWithNlbCandidatesWithPolicy(ctx, pairs, srcInfra, "", minMatchRate)
+}
+
+// RecommendMultiInfraWithNlbCandidatesWithPolicy recommends NLB-aware infrastructure across target clouds
+// while applying GPU+NLB topology resolution when GPUs or an explicit sizingPolicy are present.
+func RecommendMultiInfraWithNlbCandidatesWithPolicy(ctx context.Context, pairs []cloudmodel.CloudProperty, srcInfra onpremmodel.OnpremInfra, sizingPolicy string, minMatchRate float64) ([]cloudmodel.RecommendedInfra, error) {
 	srcInfra = SanitizeSourceInfra(srcInfra)
 
-	return recommendPerTarget(ctx, pairs, srcInfra, minMatchRate, RecommendInfraWithNlbCandidates)
+	rawPolicy := strings.TrimSpace(sizingPolicy)
+	policy, err := ValidateSizingPolicy(rawPolicy)
+	if err != nil {
+		return nil, err
+	}
+
+	recommender := RecommendInfraWithNlbCandidates
+	if HasAnyGpu(srcInfra) || rawPolicy != "" {
+		recommender = func(ctx context.Context, desiredCsp, desiredRegion string, src onpremmodel.OnpremInfra, limit int, minMatchRate float64) ([]cloudmodel.RecommendedInfra, error) {
+			return RecommendGpuNlbInfraCandidates(ctx, desiredCsp, desiredRegion, src, policy, limit, minMatchRate)
+		}
+	}
+
+	return recommendPerTarget(ctx, pairs, srcInfra, minMatchRate, recommender)
 }
 
 // recommendPerTarget runs recommend once per target pair, sequentially. Tumblebug calls share

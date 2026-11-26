@@ -1,0 +1,56 @@
+{
+  "onpremiseInfraModel": {
+    "network": {
+      "ipv4Networks": {
+        "cidrBlocks": ["10.0.5.0/24"],
+        "defaultGateways": [{"interfaceName": "ens5", "ip": "10.0.5.1", "machineId": "s5-host-hetero"}]
+      },
+      "ipv6Networks": {}
+    },
+    "nodes": [
+      {
+        "hostname": "s5-host-hetero",
+        "machineId": "s5-host-hetero",
+        "cpu": {"architecture": "x86_64", "cpus": 1, "cores": 8, "threads": 2},
+        "memory": {"type": "DDR4", "totalSize": 64},
+        "rootDisk": {"label": "/", "type": "SSD", "totalSize": 100},
+        "interfaces": [{"name": "ens5", "ipv4CidrBlocks": ["10.0.5.11/24"], "state": "up"}],
+        "routingTable": [{"destination": "0.0.0.0/0", "gateway": "10.0.5.1", "interface": "ens5"}],
+        "firewallTable": [{"srcCIDR": "0.0.0.0/0", "srcPorts": "*", "dstCIDR": "0.0.0.0/0", "dstPorts": "8080", "protocol": "tcp", "direction": "inbound", "action": "allow"}],
+        "os": {"prettyName": "Ubuntu 22.04.3 LTS", "id": "ubuntu", "versionId": "22.04", "versionCodename": "jammy"},
+        "gpuCards": [
+          {"driverIndex": "0", "vendor": "NVIDIA", "model": "NVIDIA L4", "memoryTotalGB": 24},
+          {"driverIndex": "1", "vendor": "NVIDIA", "model": "NVIDIA T4", "memoryTotalGB": 16}
+        ]
+      },
+      {
+        "hostname": "s5-t4-worker",
+        "machineId": "s5-t4-worker",
+        "cpu": {"architecture": "x86_64", "cpus": 1, "cores": 4, "threads": 2},
+        "memory": {"type": "DDR4", "totalSize": 32},
+        "rootDisk": {"label": "/", "type": "SSD", "totalSize": 100},
+        "interfaces": [{"name": "ens5", "ipv4CidrBlocks": ["10.0.5.12/24"], "state": "up"}],
+        "routingTable": [{"destination": "0.0.0.0/0", "gateway": "10.0.5.1", "interface": "ens5"}],
+        "firewallTable": [{"srcCIDR": "0.0.0.0/0", "srcPorts": "*", "dstCIDR": "0.0.0.0/0", "dstPorts": "8080", "protocol": "tcp", "direction": "inbound", "action": "allow"}],
+        "os": {"prettyName": "Ubuntu 22.04.3 LTS", "id": "ubuntu", "versionId": "22.04", "versionCodename": "jammy"},
+        "gpuCards": [{"driverIndex": "0", "vendor": "NVIDIA", "model": "NVIDIA T4", "memoryTotalGB": 16}]
+      }
+    ],
+    "nlbs": [
+      {
+        "software": "haproxy",
+        "listener": {"bindAddress": "*", "port": 8080, "protocol": "tcp"},
+        "backend": {
+          "name": "s5-intranode-pool",
+          "balance": "roundrobin",
+          "protocol": "tcp",
+          "servers": [
+            {"name": "hetero", "ip": "10.0.5.11", "port": 8080},
+            {"name": "worker", "ip": "10.0.5.12", "port": 8080}
+          ]
+        },
+        "healthCheck": {"enabled": true, "protocol": "tcp", "port": 8080, "interval": 10, "timeout": 5, "threshold": 3}
+      }
+    ]
+  }
+}

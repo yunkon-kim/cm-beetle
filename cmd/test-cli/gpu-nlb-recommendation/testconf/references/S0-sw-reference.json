@@ -1,0 +1,13 @@
+{
+  "scenarioId": "S0",
+  "title": "Case 0 - Pure CPU NLB + Standalone CPU",
+  "hardwareCase": 0,
+  "requiredSwMetadataForSwAwareTools": ["role", "listeningPorts.processName"],
+  "swAwarePreferredPolicy": "rightSizeUp",
+  "expectedNodeGroupCount": 2,
+  "expectedNlbCount": 1,
+  "expectedGpuVmCount": 0,
+  "expectedCpuVmCount": 3,
+  "expectCrossVendorConflictUnderRightSizeUp": false,
+  "swAwareFailsWhenSwAbsent": true
+}

@@ -46,6 +46,7 @@ type resolvedNlb struct {
 type nodeGroupBlueprint struct {
 	skeleton           cloudmodel.CreateNodeGroupReq
 	representativeNode onpremmodel.NodeProperty
+	memberNodes        []onpremmodel.NodeProperty
 	isNlbRelated       bool
 }
 

@@ -476,3 +476,91 @@ func TestFindAndSortVmOsImageInfoListBySimilarity_GpuSuitabilityPriority(t *test
 	require.Len(t, sortedForCpu, 2)
 	assert.Equal(t, "img-standard", sortedForCpu[0].Id)
 }
+
+func TestCalculateCandidateMatchRateWithDetails_InstanceWeightedAverage(t *testing.T) {
+	cpuNode := onpremmodel.NodeProperty{
+		MachineId: "web-cpu",
+		CPU:       onpremmodel.CpuProperty{Cpus: 4, Threads: 1, Architecture: "amd64"},
+		Memory:    onpremmodel.MemoryProperty{TotalSize: 16},
+		OS:        onpremmodel.OsProperty{ID: "ubuntu", VersionID: "22.04", VersionCodename: "jammy"},
+	}
+	gpuNode := onpremmodel.NodeProperty{
+		MachineId: "ai-gpu",
+		CPU:       onpremmodel.CpuProperty{Cpus: 8, Threads: 1, Architecture: "amd64"},
+		Memory:    onpremmodel.MemoryProperty{TotalSize: 32},
+		OS:        onpremmodel.OsProperty{ID: "ubuntu", VersionID: "22.04", VersionCodename: "jammy"},
+		GPUCards:  []onpremmodel.GpuCardProperty{{Vendor: "NVIDIA", Model: "NVIDIA L4", MemoryTotalGB: 24}},
+	}
+
+	srcInfra := onpremmodel.OnpremInfra{Nodes: []onpremmodel.NodeProperty{cpuNode, gpuNode}}
+	specs := []cloudmodel.SpecInfo{
+		{Id: "spec-cpu", CspSpecName: "m6i.xlarge", VCPU: 4, MemoryGiB: 16, CostPerHour: 0.192},
+		{Id: "spec-gpu", CspSpecName: "g5.2xlarge", VCPU: 8, MemoryGiB: 32, AcceleratorCount: 1, AcceleratorMemoryGB: 24, AcceleratorModel: "NVIDIA A10G", CostPerHour: 1.212},
+	}
+	images := []cloudmodel.ImageInfo{
+		{Id: "img-ubuntu", CspImageName: "ubuntu-22.04-amd64", OSType: "ubuntu 22.04", OSArchitecture: "amd64", OSDistribution: "ubuntu jammy 22.04"},
+	}
+	nodeGroups := []cloudmodel.CreateNodeGroupReq{
+		{Name: "ng-web", SpecId: "spec-cpu", ImageId: "img-ubuntu", NodeGroupSize: 3},
+		{Name: "ng-ai", SpecId: "spec-gpu", ImageId: "img-ubuntu", NodeGroupSize: 1},
+	}
+
+	status, _, summary := calculateCandidateMatchRateWithDetails("aws", nodeGroups, srcInfra, specs, images, 90.0)
+	// 3 CPU instances (3 dims each @ 100% -> 9*100 = 900) + 1 GPU instance (5*100 + 75 = 575) => 1475 / 15 = 98.333%
+	assert.Equal(t, "partially-matched", status)
+	assert.Equal(t, 4, summary.TotalVMs)
+	assert.InDelta(t, 75.0, summary.BestEffortRate, 0.01)
+	assert.InDelta(t, 1475.0/15.0, summary.AvgMatchRate, 0.01)
+
+	costSummary := CalculateCandidateHourlyCost(cloudmodel.RecommendedInfra{
+		TargetInfra:    cloudmodel.InfraReq{NodeGroups: nodeGroups},
+		TargetSpecList: specs,
+		TargetNlbList:  []cloudmodel.NlbReq{{Description: "nlb-1"}},
+	})
+	assert.Equal(t, 4, costSummary.TotalVmCount)
+	assert.Equal(t, 3, costSummary.CpuVmCount)
+	assert.Equal(t, 1, costSummary.GpuVmCount)
+	assert.Equal(t, 1, costSummary.NlbCount)
+	assert.InDelta(t, 3*0.192+1.212, costSummary.TotalHourlyCostUSD, 0.0001)
+}
+
+func TestCalculateMemberWeightedMatchRate_PenalizesCpuOnGpuSpec(t *testing.T) {
+	cpuNode := onpremmodel.NodeProperty{
+		MachineId: "web-cpu",
+		CPU:       onpremmodel.CpuProperty{Cpus: 4, Threads: 1, Architecture: "amd64"},
+		Memory:    onpremmodel.MemoryProperty{TotalSize: 16},
+		OS:        onpremmodel.OsProperty{ID: "ubuntu", VersionID: "22.04", VersionCodename: "jammy"},
+	}
+	gpuNode := onpremmodel.NodeProperty{
+		MachineId: "ai-gpu",
+		CPU:       onpremmodel.CpuProperty{Cpus: 8, Threads: 1, Architecture: "amd64"},
+		Memory:    onpremmodel.MemoryProperty{TotalSize: 32},
+		OS:        onpremmodel.OsProperty{ID: "ubuntu", VersionID: "22.04", VersionCodename: "jammy"},
+		GPUCards:  []onpremmodel.GpuCardProperty{{Vendor: "NVIDIA", Model: "NVIDIA T4", MemoryTotalGB: 16}},
+	}
+
+	specs := []cloudmodel.SpecInfo{
+		{Id: "spec-cpu", CspSpecName: "m6i.xlarge", VCPU: 4, MemoryGiB: 16, CostPerHour: 0.192},
+		{Id: "spec-gpu", CspSpecName: "g4dn.2xlarge", VCPU: 8, MemoryGiB: 32, AcceleratorCount: 1, AcceleratorMemoryGB: 16, AcceleratorModel: "NVIDIA T4", CostPerHour: 0.752},
+	}
+	images := []cloudmodel.ImageInfo{
+		{Id: "img-ubuntu", CspImageName: "ubuntu-22.04-amd64", OSType: "ubuntu 22.04", OSArchitecture: "amd64", OSDistribution: "ubuntu jammy 22.04"},
+	}
+
+	consBps := []nodeGroupBlueprint{{representativeNode: gpuNode, memberNodes: []onpremmodel.NodeProperty{cpuNode, gpuNode}}}
+	consNgs := []cloudmodel.CreateNodeGroupReq{{Name: "ng-cons", SpecId: "spec-gpu", ImageId: "img-ubuntu", NodeGroupSize: 2}}
+	_, _, consSummary := calculateMemberWeightedMatchRateWithDetails("aws", consNgs, consBps, specs, images, 85.0)
+
+	divBps := []nodeGroupBlueprint{
+		{representativeNode: cpuNode, memberNodes: []onpremmodel.NodeProperty{cpuNode}},
+		{representativeNode: gpuNode, memberNodes: []onpremmodel.NodeProperty{gpuNode}},
+	}
+	divNgs := []cloudmodel.CreateNodeGroupReq{
+		{Name: "ng-cpu", SpecId: "spec-cpu", ImageId: "img-ubuntu", NodeGroupSize: 1},
+		{Name: "ng-gpu", SpecId: "spec-gpu", ImageId: "img-ubuntu", NodeGroupSize: 1},
+	}
+	divStatus, _, divSummary := calculateMemberWeightedMatchRateWithDetails("aws", divNgs, divBps, specs, images, 85.0)
+
+	assert.Equal(t, "highly-matched", divStatus)
+	assert.Less(t, consSummary.AvgMatchRate, divSummary.AvgMatchRate)
+}

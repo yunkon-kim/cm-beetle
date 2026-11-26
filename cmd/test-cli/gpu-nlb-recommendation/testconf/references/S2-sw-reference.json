@@ -1,0 +1,13 @@
+{
+  "scenarioId": "S2",
+  "title": "Case 2 - Cross-Vendor GPU (NVIDIA + AMD) NLB",
+  "hardwareCase": 2,
+  "requiredSwMetadataForSwAwareTools": ["role", "listeningPorts.processName", "cudaOrRocmRuntime"],
+  "swAwarePreferredPolicy": "dividing",
+  "expectedNodeGroupCount": 2,
+  "expectedNlbCount": 2,
+  "expectedGpuVmCount": 2,
+  "expectedCpuVmCount": 0,
+  "expectCrossVendorConflictUnderRightSizeUp": true,
+  "swAwareFailsWhenSwAbsent": true
+}

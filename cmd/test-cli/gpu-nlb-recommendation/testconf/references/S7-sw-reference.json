@@ -1,0 +1,13 @@
+{
+  "scenarioId": "S7",
+  "title": "Case 1+3 - 3-Tier Mixed CPU + T4 + L4 NLB + Standalone CPU",
+  "hardwareCase": 1,
+  "requiredSwMetadataForSwAwareTools": ["role", "listeningPorts.processName", "gpuUtilizationProfile", "modelMemoryProfile"],
+  "swAwarePreferredPolicy": "dividing",
+  "expectedNodeGroupCount": 4,
+  "expectedNlbCount": 3,
+  "expectedGpuVmCount": 3,
+  "expectedCpuVmCount": 3,
+  "expectCrossVendorConflictUnderRightSizeUp": false,
+  "swAwareFailsWhenSwAbsent": true
+}

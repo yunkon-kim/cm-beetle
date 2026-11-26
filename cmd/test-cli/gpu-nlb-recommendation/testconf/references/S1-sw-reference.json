@@ -1,0 +1,13 @@
+{
+  "scenarioId": "S1",
+  "title": "Case 1 - Mixed CPU + GPU T4 NLB + Standalone CPU",
+  "hardwareCase": 1,
+  "requiredSwMetadataForSwAwareTools": ["role", "listeningPorts.processName", "gpuUtilizationProfile"],
+  "swAwarePreferredPolicy": "dividing",
+  "expectedNodeGroupCount": 3,
+  "expectedNlbCount": 2,
+  "expectedGpuVmCount": 2,
+  "expectedCpuVmCount": 3,
+  "expectCrossVendorConflictUnderRightSizeUp": false,
+  "swAwareFailsWhenSwAbsent": true
+}

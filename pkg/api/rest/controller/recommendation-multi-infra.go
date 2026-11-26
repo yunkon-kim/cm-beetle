@@ -200,6 +200,7 @@ type RecommendMultiInfraWithNlbRequest struct {
 // @Produce  json
 // @Param request body RecommendMultiInfraWithNlbRequest true "Target CSP/region pairs and the source infra including NLBs"
 // @Param minMatchRate query number false "Minimum match rate for highly-matched classification (default: 85.0, range: 0-100)"
+// @Param sizingPolicy query string false "Sizing policy for GPU+NLB topology resolution (default: rightSizeUp)" Enums(rightSizeUp,dividing,auto)
 // @Param X-Request-Id header string false "Unique request ID (auto-generated if not provided). Used for tracking request status and correlating logs."
 // @Param Prefer header string false "Set to 'respond-async' to run this recommendation asynchronously (RFC 7240)" Enums(respond-async)
 // @Success 200 {object} model.ApiResponse[[]cloudmodel.RecommendedInfra] "One recommended (or failed/nothing-to-recommend) candidate per target, in request order"
@@ -230,6 +231,12 @@ func RecommendMultiInfraWithNlbCandidates(c echo.Context) error {
 			"sourceInfra.nlbs is required for multiInfraWithNlb; use /recommendation/multiInfra for NLB-free recommendation"))
 	}
 
+	rawSizingPolicy := c.QueryParam("sizingPolicy")
+	if _, policyErr := recommendation.ValidateSizingPolicy(rawSizingPolicy); policyErr != nil {
+		log.Warn().Err(policyErr).Str("sizingPolicy", rawSizingPolicy).Msg("invalid sizingPolicy query parameter")
+		return c.JSON(http.StatusBadRequest, model.SimpleErrorResponse(policyErr.Error()))
+	}
+
 	minMatchRate := parseMinMatchRate(c)
 	pairs := reqt.DesiredCspAndRegionPairs
 	sourceInfra := reqt.SourceInfra
@@ -237,7 +244,7 @@ func RecommendMultiInfraWithNlbCandidates(c echo.Context) error {
 	if preferRespondAsync(c) {
 		reqID := c.Request().Header.Get(echo.HeaderXRequestID)
 		started := common.RunAsync(c.Request().Context(), reqID, func(ctx context.Context) ([]cloudmodel.RecommendedInfra, error) {
-			return recommendation.RecommendMultiInfraWithNlbCandidates(ctx, pairs, sourceInfra, minMatchRate)
+			return recommendation.RecommendMultiInfraWithNlbCandidatesWithPolicy(ctx, pairs, sourceInfra, rawSizingPolicy, minMatchRate)
 		})
 		if !started {
 			c.Response().Header().Set("Retry-After", "5")
@@ -255,7 +262,7 @@ func RecommendMultiInfraWithNlbCandidates(c echo.Context) error {
 	}
 
 	// [Process]
-	results, err := recommendation.RecommendMultiInfraWithNlbCandidates(c.Request().Context(), pairs, sourceInfra, minMatchRate)
+	results, err := recommendation.RecommendMultiInfraWithNlbCandidatesWithPolicy(c.Request().Context(), pairs, sourceInfra, rawSizingPolicy, minMatchRate)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to recommend multi-target NLB-aware infrastructure candidates")
 		return c.JSON(http.StatusInternalServerError, model.SimpleErrorResponse("Recommendation failed"))

@@ -1,0 +1,13 @@
+{
+  "scenarioId": "S6",
+  "title": "Compound B - Multi-NLB (N:M) Shared Server Overlap + Mixed CPU/GPU",
+  "hardwareCase": 1,
+  "requiredSwMetadataForSwAwareTools": ["role", "listeningPorts.processName", "serviceDependencyGraph"],
+  "swAwarePreferredPolicy": "dividing",
+  "expectedNodeGroupCount": 3,
+  "expectedNlbCount": 3,
+  "expectedGpuVmCount": 3,
+  "expectedCpuVmCount": 1,
+  "expectCrossVendorConflictUnderRightSizeUp": false,
+  "swAwareFailsWhenSwAbsent": true
+}

@@ -1,0 +1,13 @@
+{
+  "scenarioId": "S3",
+  "title": "Case 3 - Heterogeneous Same-Vendor GPU (L4 + T4) NLB",
+  "hardwareCase": 3,
+  "requiredSwMetadataForSwAwareTools": ["role", "listeningPorts.processName", "modelMemoryProfile"],
+  "swAwarePreferredPolicy": "dividing",
+  "expectedNodeGroupCount": 2,
+  "expectedNlbCount": 2,
+  "expectedGpuVmCount": 3,
+  "expectedCpuVmCount": 0,
+  "expectCrossVendorConflictUnderRightSizeUp": false,
+  "swAwareFailsWhenSwAbsent": true
+}

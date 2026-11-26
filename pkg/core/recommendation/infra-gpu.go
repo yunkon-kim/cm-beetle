@@ -71,6 +71,7 @@ func DecomposeOnpremNodes(nodes []onpremmodel.NodeProperty) []onpremmodel.NodePr
 				logicalMachineId = fmt.Sprintf("%s-primary-%s", node.MachineId, sanitizedModel)
 			}
 
+			// Preserve host CPU/memory/disk lower bounds on each LAU for independent spec sizing.
 			logicalNode := node
 			logicalNode.MachineId = logicalMachineId
 			logicalNode.GPUCards = matchedCards

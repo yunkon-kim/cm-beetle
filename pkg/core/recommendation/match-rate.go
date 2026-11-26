@@ -106,6 +106,44 @@ type InfraMatchRateSummary struct {
 	TotalVMs       int
 }
 
+// CandidateCostSummary aggregates estimated hourly compute cost and VM/NLB counts for a candidate.
+type CandidateCostSummary struct {
+	TotalHourlyCostUSD float64 `json:"totalHourlyCostUsd"`
+	GpuVmCount         int     `json:"gpuVmCount"`
+	CpuVmCount         int     `json:"cpuVmCount"`
+	TotalVmCount       int     `json:"totalVmCount"`
+	NlbCount           int     `json:"nlbCount"`
+}
+
+// CalculateCandidateHourlyCost computes total hourly VM cost and resource counts for a candidate.
+func CalculateCandidateHourlyCost(candidate cloudmodel.RecommendedInfra) CandidateCostSummary {
+	specById := make(map[string]cloudmodel.SpecInfo, len(candidate.TargetSpecList))
+	for _, s := range candidate.TargetSpecList {
+		specById[s.Id] = s
+	}
+	summary := CandidateCostSummary{
+		NlbCount: len(candidate.TargetNlbList),
+	}
+	for _, ng := range candidate.TargetInfra.NodeGroups {
+		size := ng.NodeGroupSize
+		if size <= 0 {
+			size = 1
+		}
+		if spec, ok := specById[ng.SpecId]; ok && ng.SpecId != "" {
+			summary.TotalVmCount += size
+			if spec.CostPerHour > 0 {
+				summary.TotalHourlyCostUSD += float64(spec.CostPerHour) * float64(size)
+			}
+			if spec.AcceleratorCount > 0 || spec.AcceleratorMemoryGB > 0 || strings.TrimSpace(spec.AcceleratorModel) != "" {
+				summary.GpuVmCount += size
+			} else {
+				summary.CpuVmCount += size
+			}
+		}
+	}
+	return summary
+}
+
 // calculateCandidateMatchRateWithDetails evaluates all node groups in a candidate against minMatchRate.
 func calculateCandidateMatchRateWithDetails(
 	csp string,
@@ -163,8 +201,13 @@ func calculateCandidateMatchRateWithDetails(
 			continue
 		}
 
+		size := nodeGroup.NodeGroupSize
+		if size <= 0 {
+			size = 1
+		}
+
 		matchRateVec := calculateMatchRateVector(csp, node, selectedSpec, selectedImage)
-		validServerCount++
+		validServerCount += size
 
 		vmMinMatchRate := matchRateVec.MinMatchRate()
 		vmMaxMatchRate := matchRateVec.MaxMatchRate()
@@ -179,12 +222,12 @@ func calculateCandidateMatchRateWithDetails(
 
 		activeDims := matchRateVec.ActiveDimensions()
 		for _, dimScore := range activeDims {
-			totalMatchRate += dimScore
+			totalMatchRate += dimScore * float64(size)
 		}
-		totalDimensionCount += len(activeDims)
+		totalDimensionCount += len(activeDims) * size
 
 		if matchRateVec.IsMatched(minMatchRate) {
-			bestEffortCount++
+			bestEffortCount += size
 		}
 
 		log.Trace().
@@ -246,6 +289,124 @@ func calculateCandidateMatchRateWithDetails(
 		Int("totalDimensionCount", totalDimensionCount).
 		Msg("Overall candidate match rate assessment")
 
+	return overallStatus, overallStatusDesc, summary
+}
+
+// calculateMemberWeightedMatchRateWithDetails scores each NodeGroup across its LAU members with CPU-to-GPU penalty.
+func calculateMemberWeightedMatchRateWithDetails(
+	csp string,
+	tempNodeGroupList []cloudmodel.CreateNodeGroupReq,
+	blueprints []nodeGroupBlueprint,
+	deduplicatedVmSpecList []cloudmodel.SpecInfo,
+	deduplicatedVmOsImageList []cloudmodel.ImageInfo,
+	minMatchRate float64,
+) (string, string, InfraMatchRateSummary) {
+	if len(tempNodeGroupList) == 0 {
+		return "nothing-to-recommend", "No VMs available for recommendation", InfraMatchRateSummary{}
+	}
+
+	specById := make(map[string]cloudmodel.SpecInfo, len(deduplicatedVmSpecList))
+	for _, spec := range deduplicatedVmSpecList {
+		specById[spec.Id] = spec
+	}
+	imageById := make(map[string]cloudmodel.ImageInfo, len(deduplicatedVmOsImageList))
+	for _, image := range deduplicatedVmOsImageList {
+		imageById[image.Id] = image
+	}
+
+	lowestMatchRate := 100.0
+	highestMatchRate := 0.0
+	totalMatchRate := 0.0
+	totalDimensionCount := 0
+	bestEffortCount := 0
+	validServerCount := 0
+
+	for j, nodeGroup := range tempNodeGroupList {
+		if j >= len(blueprints) {
+			break
+		}
+		if nodeGroup.SpecId == "" || nodeGroup.ImageId == "" {
+			continue
+		}
+		selectedSpec, specOk := specById[nodeGroup.SpecId]
+		selectedImage, imgOk := imageById[nodeGroup.ImageId]
+		if !specOk || !imgOk {
+			continue
+		}
+
+		members := blueprints[j].memberNodes
+		memberWeight := 1
+		if len(members) == 0 {
+			members = []onpremmodel.NodeProperty{blueprints[j].representativeNode}
+			memberWeight = nodeGroup.NodeGroupSize
+			if memberWeight <= 0 {
+				memberWeight = 1
+			}
+		}
+
+		for _, member := range members {
+			matchRateVec := calculateMatchRateVector(csp, member, selectedSpec, selectedImage)
+			validServerCount += memberWeight
+
+			activeDims := matchRateVec.ActiveDimensions()
+			dimSum := 0.0
+			for _, dimScore := range activeDims {
+				totalMatchRate += dimScore * float64(memberWeight)
+				dimSum += dimScore
+			}
+
+			overProvisioned := !matchRateVec.HasGPU && (selectedSpec.AcceleratorCount > 0 || selectedSpec.AcceleratorMemoryGB > 0)
+			dimCount := len(activeDims)
+			if overProvisioned {
+				dimCount++
+			}
+			totalDimensionCount += dimCount * memberWeight
+
+			vmMin := matchRateVec.MinMatchRate()
+			if overProvisioned {
+				vmMin = 0.0
+			}
+			if vmMin < lowestMatchRate {
+				lowestMatchRate = vmMin
+			}
+			if vmMax := matchRateVec.MaxMatchRate(); vmMax > highestMatchRate {
+				highestMatchRate = vmMax
+			}
+
+			if overProvisioned {
+				if dimCount > 0 && (dimSum/float64(dimCount)) >= minMatchRate {
+					bestEffortCount += memberWeight
+				}
+			} else if matchRateVec.IsMatched(minMatchRate) {
+				bestEffortCount += memberWeight
+			}
+		}
+	}
+
+	if validServerCount == 0 || totalDimensionCount == 0 {
+		return "nothing-to-recommend", "No valid VM spec-image pairs found", InfraMatchRateSummary{}
+	}
+
+	avgMatchRate := totalMatchRate / float64(totalDimensionCount)
+	bestEffortRate := float64(bestEffortCount) / float64(validServerCount) * 100.0
+	overallStatus := "partially-matched"
+	if bestEffortCount == validServerCount {
+		overallStatus = "highly-matched"
+	}
+	overallStatusDesc := fmt.Sprintf(
+		"VMs: %d total, %d matched, %d acceptable",
+		validServerCount,
+		bestEffortCount,
+		validServerCount-bestEffortCount,
+	)
+
+	summary := InfraMatchRateSummary{
+		MinMatchRate:   lowestMatchRate,
+		MaxMatchRate:   highestMatchRate,
+		AvgMatchRate:   avgMatchRate,
+		BestEffortRate: bestEffortRate,
+		TotalVMs:       validServerCount,
+	}
 	return overallStatus, overallStatusDesc, summary
 }
 

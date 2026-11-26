@@ -16,6 +16,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -189,11 +190,13 @@ type RecommendInfraResponse struct {
 // @Param desiredRegion query string false "Region (e.g., ap-northeast-2)" default(ap-northeast-2)
 // @Param limit query int false "Limit (default: 3) the number of recommended infrastructures"
 // @Param minMatchRate query number false "Minimum match rate for highly-matched classification (default: 85.0, range: 0-100)"
+// @Param sizingPolicy query string false "Sizing policy for GPU+NLB topology resolution (default: rightSizeUp)" Enums(rightSizeUp,dividing,auto)
 // @Param X-Request-Id header string false "Unique request ID (auto-generated if not provided). Used for tracking request status and correlating logs."
 // @Param Prefer header string false "Set to 'respond-async' to run this recommendation asynchronously (RFC 7240)" Enums(respond-async)
 // @Success 200 {object} model.ApiResponse[[]cloudmodel.RecommendedInfra] "Successfully recommended infrastructure candidates"
 // @Success 202 {object} model.ApiResponse[model.AsyncJobResponse] "Recommendation started asynchronously - use GET /request/{reqId} to check status"
 // @Failure 400 {object} model.ApiResponse[any] "Invalid request parameters"
+// @Failure 422 {object} model.ApiResponse[any] "Unprocessable hardware/topology conflict under selected sizingPolicy"
 // @Failure 500 {object} model.ApiResponse[any] "Internal server error during recommendation"
 // @Failure 503 {object} model.ApiResponse[any] "Too many requests - retry after the given time"
 // @Header 503 {string} Retry-After "Seconds until client should retry"
@@ -249,6 +252,13 @@ func RecommendInfraCandidates(c echo.Context) error {
 	}
 	sourceInfra := reqt.OnpremiseInfraModel
 
+	rawSizingPolicy := c.QueryParam("sizingPolicy")
+	sizingPolicy, policyErr := recommendation.ValidateSizingPolicy(rawSizingPolicy)
+	if policyErr != nil {
+		log.Warn().Err(policyErr).Str("sizingPolicy", rawSizingPolicy).Msg("invalid sizingPolicy query parameter")
+		return c.JSON(http.StatusBadRequest, model.SimpleErrorResponse(policyErr.Error()))
+	}
+
 	ok, err := recommendation.IsValidCspAndRegion(c.Request().Context(), csp, region)
 	if !ok {
 		log.Error().Err(err).Msg("failed to validate CSP and region")
@@ -257,7 +267,11 @@ func RecommendInfraCandidates(c echo.Context) error {
 
 	// Select specialized recommendation module based on resource characteristics
 	recommender := recommendation.RecommendInfraCandidates
-	if len(sourceInfra.NLBs) > 0 {
+	if len(sourceInfra.NLBs) > 0 && (recommendation.HasAnyGpu(sourceInfra) || rawSizingPolicy != "") {
+		recommender = func(ctx context.Context, desiredCsp, desiredRegion string, src onpremmodel.OnpremInfra, limit int, minMatchRate float64) ([]cloudmodel.RecommendedInfra, error) {
+			return recommendation.RecommendGpuNlbInfraCandidates(ctx, desiredCsp, desiredRegion, src, sizingPolicy, limit, minMatchRate)
+		}
+	} else if len(sourceInfra.NLBs) > 0 {
 		recommender = recommendation.RecommendInfraWithNlbCandidates
 	} else if recommendation.HasAnyGpu(sourceInfra) {
 		recommender = recommendation.RecommendGpuInfraCandidates
@@ -286,6 +300,10 @@ func RecommendInfraCandidates(c echo.Context) error {
 	// [Process]
 	recommendedInfraCandidates, err := recommender(c.Request().Context(), csp, region, sourceInfra, limit, minMatchRate)
 	if err != nil {
+		if errors.Is(err, recommendation.ErrCrossVendorConsolidation) {
+			log.Warn().Err(err).Msg("cross-vendor GPU consolidation conflict under rightSizeUp")
+			return c.JSON(http.StatusUnprocessableEntity, model.SimpleErrorResponse(err.Error()))
+		}
 		if retryAfter, ok := ratelimit.RetryAfter(err); ok {
 			c.Response().Header().Set("Retry-After", fmt.Sprintf("%d", ratelimit.RetryAfterSeconds(retryAfter)))
 			return c.JSON(http.StatusServiceUnavailable, model.SimpleErrorResponse(
@@ -359,12 +377,14 @@ type RecommendInfraWithNlbRequest struct {
 // @Param desiredRegion query string false "Target region (e.g., ap-northeast-2)" default(ap-northeast-2)
 // @Param limit query int false "Maximum number of candidates to return" default(5)
 // @Param minMatchRate query number false "Minimum match rate (0-100) for highly-matched classification" default(85.0)
+// @Param sizingPolicy query string false "Sizing policy for GPU+NLB topology resolution (default: rightSizeUp)" Enums(rightSizeUp,dividing,auto)
 // @Param request body RecommendInfraWithNlbRequest true "Source infra including NLBs (from cm-honeybee)"
 // @Param X-Request-Id header string false "Unique request ID (auto-generated if not provided)"
 // @Param Prefer header string false "Set to 'respond-async' to run this recommendation asynchronously (RFC 7240)" Enums(respond-async)
 // @Success 200 {object} model.ApiResponse[[]cloudmodel.RecommendedInfra] "NLB-aware recommendation candidates"
 // @Success 202 {object} model.ApiResponse[model.AsyncJobResponse] "Recommendation started asynchronously - use GET /request/{reqId} to check status"
 // @Failure 400 {object} model.ApiResponse[any] "Invalid request"
+// @Failure 422 {object} model.ApiResponse[any] "Unprocessable hardware/topology conflict under selected sizingPolicy"
 // @Failure 500 {object} model.ApiResponse[any] "Internal server error"
 // @Failure 503 {object} model.ApiResponse[any] "Too many requests - retry after the given time"
 // @Header 503 {string} Retry-After "Seconds until client should retry"
@@ -412,9 +432,23 @@ func RecommendInfraWithNlbCandidates(c echo.Context) error {
 			"sourceInfra.nlbs is required for infraWithNlb; use /recommendation/infra for NLB-free recommendation"))
 	}
 
+	rawSizingPolicy := c.QueryParam("sizingPolicy")
+	sizingPolicy, policyErr := recommendation.ValidateSizingPolicy(rawSizingPolicy)
+	if policyErr != nil {
+		log.Warn().Err(policyErr).Str("sizingPolicy", rawSizingPolicy).Msg("invalid sizingPolicy query parameter")
+		return c.JSON(http.StatusBadRequest, model.SimpleErrorResponse(policyErr.Error()))
+	}
+
 	if ok, err := recommendation.IsValidCspAndRegion(c.Request().Context(), req.DesiredCsp, req.DesiredRegion); !ok {
 		log.Error().Err(err).Msg("failed to validate CSP and region")
 		return c.JSON(http.StatusBadRequest, model.SimpleErrorResponse("Invalid provider or region"))
+	}
+
+	nlbRecommender := recommendation.RecommendInfraWithNlbCandidates
+	if recommendation.HasAnyGpu(req.SourceInfra) || rawSizingPolicy != "" {
+		nlbRecommender = func(ctx context.Context, desiredCsp, desiredRegion string, src onpremmodel.OnpremInfra, limit int, minMatchRate float64) ([]cloudmodel.RecommendedInfra, error) {
+			return recommendation.RecommendGpuNlbInfraCandidates(ctx, desiredCsp, desiredRegion, src, sizingPolicy, limit, minMatchRate)
+		}
 	}
 
 	log.Info().
@@ -422,6 +456,7 @@ func RecommendInfraWithNlbCandidates(c echo.Context) error {
 		Str("desiredRegion", req.DesiredRegion).
 		Int("nodes", len(req.SourceInfra.Nodes)).
 		Int("nlbs", len(req.SourceInfra.NLBs)).
+		Str("sizingPolicy", sizingPolicy).
 		Int("limit", limit).
 		Float64("minMatchRate", minMatchRate).
 		Msg("Processing infraWithNlb recommendation request")
@@ -429,7 +464,7 @@ func RecommendInfraWithNlbCandidates(c echo.Context) error {
 	if preferRespondAsync(c) {
 		reqID := c.Request().Header.Get(echo.HeaderXRequestID)
 		started := common.RunAsync(c.Request().Context(), reqID, func(ctx context.Context) ([]cloudmodel.RecommendedInfra, error) {
-			return recommendation.RecommendInfraWithNlbCandidates(
+			return nlbRecommender(
 				ctx, req.DesiredCsp, req.DesiredRegion, req.SourceInfra, limit, minMatchRate,
 			)
 		})
@@ -449,10 +484,14 @@ func RecommendInfraWithNlbCandidates(c echo.Context) error {
 	}
 
 	// [Process]
-	candidates, err := recommendation.RecommendInfraWithNlbCandidates(
+	candidates, err := nlbRecommender(
 		c.Request().Context(), req.DesiredCsp, req.DesiredRegion, req.SourceInfra, limit, minMatchRate,
 	)
 	if err != nil {
+		if errors.Is(err, recommendation.ErrCrossVendorConsolidation) {
+			log.Warn().Err(err).Msg("cross-vendor GPU consolidation conflict under rightSizeUp")
+			return c.JSON(http.StatusUnprocessableEntity, model.SimpleErrorResponse(err.Error()))
+		}
 		if retryAfter, ok := ratelimit.RetryAfter(err); ok {
 			c.Response().Header().Set("Retry-After", fmt.Sprintf("%d", ratelimit.RetryAfterSeconds(retryAfter)))
 			return c.JSON(http.StatusServiceUnavailable, model.SimpleErrorResponse(
