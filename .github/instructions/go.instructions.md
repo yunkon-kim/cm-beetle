@@ -26,7 +26,7 @@ applyTo: "**/*.go"
   - Pattern: `log.Error().Err(err).Msg("message")`
 - **Error Handling:**
   - Handle errors explicitly.
-  - Return meaningful error messages and HTTP status codes using `model.Response`.
+  - Return meaningful error messages and HTTP status codes using `model.ApiResponse` helpers (`model.SimpleErrorResponse`, `model.SuccessResponseWithMessage`).
 
 ## Configuration
 

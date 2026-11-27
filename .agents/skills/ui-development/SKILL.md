@@ -7,7 +7,7 @@ description: Guidelines and instructions for developing the Beetle UX Lab (Next.
 
 ## Quick Reference
 
-**📘 Full Design System:** Read [DESIGN_SYSTEM.md](file:///home/ubuntu/dev/cloud-barista/cm-beetle/ui/DESIGN_SYSTEM.md) for comprehensive guidelines on branding, colors, components, and tech stack.
+**📘 Full Design System:** Read [DESIGN_SYSTEM.md](../../../ui/DESIGN_SYSTEM.md) for comprehensive guidelines on branding, colors, components, and tech stack.
 
 ## Essential Rules
 
@@ -30,7 +30,7 @@ description: Guidelines and instructions for developing the Beetle UX Lab (Next.
 
 - **Key (Labels / Field Names):** Always standard weight (`font-normal text-text-muted`). Never bold.
 - **Value (Data / Metrics):** Always bold (`font-extrabold text-text-main`).
-- **Minimum Font Size:** Main labels and data values must be at least `text-sm` (16px). Avoid `text-[9px]`, `text-[10px]`, `text-[11px]`.
+- **Minimum Font Size:** Main labels and data values must be at least `text-sm` (1.1rem / 17.6px via `ui/src/app/globals.css` `@theme`). Avoid `text-[9px]`, `text-[10px]`, `text-[11px]`.
 - **Text Casing:** Title Case only: never `ALL CAPS` on static labels.
   - ✅ `Node Spec`, `Node Image`, `Root Disk`, `Security Group(s)`, `Node(s)`
   - ❌ `NODE SPEC`, `NODE IMAGE`, `ROOT DISK`, `SECURITY GROUP`
@@ -83,14 +83,14 @@ import { Database } from "lucide-react";
 
 ## File Organization
 
-- [ui/src/app/layout.tsx](file:///home/ubuntu/dev/cloud-barista/cm-beetle/ui/src/app/layout.tsx) # Root layout
-- [ui/src/app/page.tsx](file:///home/ubuntu/dev/cloud-barista/cm-beetle/ui/src/app/page.tsx) # Main entry with tab routing
-- [ui/src/app/globals.css](file:///home/ubuntu/dev/cloud-barista/cm-beetle/ui/src/app/globals.css) # Tailwind theme (emerald/teal)
-- [ui/src/components/layout/AppLayout.tsx](file:///home/ubuntu/dev/cloud-barista/cm-beetle/ui/src/components/layout/AppLayout.tsx)
-- [ui/src/components/source/SourceCenter.tsx](file:///home/ubuntu/dev/cloud-barista/cm-beetle/ui/src/components/source/SourceCenter.tsx)
-- [ui/src/components/design/MigrationDesigner.tsx](file:///home/ubuntu/dev/cloud-barista/cm-beetle/ui/src/components/design/MigrationDesigner.tsx)
-- [ui/src/components/center/MigrationCenter.tsx](file:///home/ubuntu/dev/cloud-barista/cm-beetle/ui/src/components/center/MigrationCenter.tsx)
-- [ui/src/store/migrationStore.ts](file:///home/ubuntu/dev/cloud-barista/cm-beetle/ui/src/store/migrationStore.ts)
+- [ui/src/app/layout.tsx](../../../ui/src/app/layout.tsx) # Root layout
+- [ui/src/app/page.tsx](../../../ui/src/app/page.tsx) # Main entry with tab routing
+- [ui/src/app/globals.css](../../../ui/src/app/globals.css) # Tailwind theme (emerald/teal)
+- [ui/src/components/layout/AppLayout.tsx](../../../ui/src/components/layout/AppLayout.tsx)
+- [ui/src/components/source/SourceMetadataExtraction.tsx](../../../ui/src/components/source/SourceMetadataExtraction.tsx)
+- [ui/src/components/design/CloudInfraOptimizer.tsx](../../../ui/src/components/design/CloudInfraOptimizer.tsx)
+- [ui/src/components/center/MigrationExecution.tsx](../../../ui/src/components/center/MigrationExecution.tsx)
+- [ui/src/store/migrationStore.ts](../../../ui/src/store/migrationStore.ts)
 
 ## Code Quality Standards
 

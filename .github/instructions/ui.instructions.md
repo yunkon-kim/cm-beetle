@@ -30,7 +30,7 @@ applyTo:
 
 - **Key (Labels / Field Names):** Always standard weight (`font-normal text-text-muted`). Never bold.
 - **Value (Data / Metrics):** Always bold (`font-extrabold text-text-main`).
-- **Minimum Font Size:** Main labels and data values must be at least `text-sm` (16px). Avoid `text-[9px]`, `text-[10px]`, `text-[11px]`.
+- **Minimum Font Size:** Main labels and data values must be at least `text-sm` (1.1rem / 17.6px via `ui/src/app/globals.css` `@theme`). Avoid `text-[9px]`, `text-[10px]`, `text-[11px]`.
 - **Text Casing:** Title Case only: never `ALL CAPS` on static labels.
   - ✅ `Node Spec`, `Node Image`, `Root Disk`, `Security Group(s)`, `Node(s)`
   - ❌ `NODE SPEC`, `NODE IMAGE`, `ROOT DISK`, `SECURITY GROUP`
@@ -95,9 +95,9 @@ ui/src/
 │   └── damselfly/[[...path]]/
 ├── components/
 │   ├── layout/AppLayout.tsx    # Header, navigation, theme toggle
-│   ├── source/SourceCenter.tsx
-│   ├── design/MigrationDesigner.tsx
-│   └── center/MigrationCenter.tsx
+│   ├── source/SourceMetadataExtraction.tsx
+│   ├── design/CloudInfraOptimizer.tsx
+│   └── center/MigrationExecution.tsx
 ├── store/migrationStore.ts     # Zustand global state
 └── lib/proxy.ts                # Generic reverse-proxy helper
 ```

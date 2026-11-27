@@ -5,7 +5,7 @@ description: "Automate imdl release workflow: commit, push to fork, create PR, /
 
 # Release IMDL Module
 
-This skill automates the release process for the `imdl` module (`github.com/cloud-barista/cm-beetle/imdl`) following the three-tier remote model and release guidelines in [imdl/README.md](file:///home/ubuntu/dev/cloud-barista/cm-beetle/imdl/README.md).
+This skill automates the release process for the `imdl` module (`github.com/cloud-barista/cm-beetle/imdl`) following the three-tier remote model and release guidelines in [imdl/README.md](../../../imdl/README.md).
 
 ## Prerequisites & Context
 

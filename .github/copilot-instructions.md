@@ -2,12 +2,12 @@
 
 ## Project Rules
 
-- **Language & Framework:** Go 1.21+, Echo Framework.
+- **Language & Framework:** Go 1.26.2+, Echo Framework.
 - **Documentation Style:** Technical accuracy with a friendly and professional tone.
 - **Language Setting:** All responses and explanations must be in **English**.
 - **Code Standards:**
   - Echo handlers must follow the standard pattern using `context.Bind` and `context.JSON`.
-  - Refer to `pkg/core/common/error.go` for standard error types.
+  - Refer to `pkg/api/rest/model/response.go` for standard API response and error helpers (`model.SimpleErrorResponse`, `model.SuccessResponseWithMessage`).
 
 This repository contains the source code for **CM-Beetle** (Computing Infrastructure Migration), a sub-system of the Cloud-Barista platform.
 
@@ -27,7 +27,7 @@ This repository contains the source code for **CM-Beetle** (Computing Infrastruc
 - **API Specification:** `api/swagger.yaml` (Source of truth for API contracts).
 - **Data Models:** `pkg/api/rest/model/` (Request/Response structures).
 - **Configuration:** `conf/config.yaml` (Available configuration options).
-- **Error Definitions:** `pkg/core/common/error.go` (Standard error types).
+- **API Response Helpers:** `pkg/api/rest/model/response.go` (Standard success and error response helpers).
 
 ### CB-Tumblebug Integration
 
@@ -169,16 +169,16 @@ func HandlerName(c echo.Context) error {
     nsId := c.Param("nsId")
     var req RequestModel
     if err := c.Bind(&req); err != nil {
-        return c.JSON(http.StatusBadRequest, model.Response{Message: err.Error()})
+        log.Warn().Err(err).Msg("Failed to bind request body")
+        return c.JSON(http.StatusBadRequest, model.SimpleErrorResponse("Invalid request format"))
     }
 
-    // Core logic
     result, err := coreLogic(nsId, req)
     if err != nil {
         log.Error().Err(err).Msg("Operation failed")
-        return c.JSON(http.StatusInternalServerError, model.Response{Message: err.Error()})
+        return c.JSON(http.StatusInternalServerError, model.SimpleErrorResponse("Operation failed"))
     }
-    return c.JSON(http.StatusOK, result)
+    return c.JSON(http.StatusOK, model.SuccessResponseWithMessage(result, "Operation completed"))
 }
 ```
 
